@@ -8,9 +8,13 @@ Generated on 2026-09-03. **Do not edit by hand** - edit the note's status.
 
 - [Decide the auth model before anything exposes a port](Kestrel/notes/auth-model-undecided.md)
 
-## Blocked by another note (1)
+## Work chains (1)
 
-- [Import subscriptions from an OPML file](Kestrel/notes/opml-import.md) - waiting on `auth-model-undecided`
+Each level waits on the one above it. Close a link and the next run
+reports the one below as unblocked.
+
+- [Decide the auth model before anything exposes a port](Kestrel/notes/auth-model-undecided.md)  <- start here
+  - [Import subscriptions from an OPML file](Kestrel/notes/opml-import.md)
 
 ## Unverified, needs checking (0)
 

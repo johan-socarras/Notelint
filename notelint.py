@@ -318,31 +318,88 @@ def index_block(group, prefix, V):
     return out
 
 
-def open_block(group, everything, prefix, V):
+def link_to(n, folder_ref):
+    """Path to a note's file, relative to wherever the view is written."""
+    if folder_ref is None:                      # OPEN.md at the base
+        return n["folder"].name + "/notes/" + n["id"] + ".md"
+    if n["folder"] == folder_ref:               # OPEN.md inside the project
+        return "notes/" + n["id"] + ".md"
+    return "../" + n["folder"].name + "/notes/" + n["id"] + ".md"
+
+
+def blocking_graph(everything, V):
+    """children: blocker -> blocked. roots: where each chain starts."""
+    CURRENT, BLOCKS = V["statuses"][0], V["edges"][2]
+    children, blocked = {}, set()
+    for i, n in everything.items():
+        if n["status"] != CURRENT:
+            continue
+        targets = sorted(d for d in n["links"][BLOCKS] if d in everything)
+        if targets:
+            children[i] = targets
+            blocked.update(targets)
+    roots = sorted(i for i in children if i not in blocked)
+    return children, blocked, roots
+
+
+def branch(i, children, everything, folder_ref, level, seen, out):
+    """Draw one chain depth-first. `seen` breaks cycles."""
+    n = everything[i]
+    away = "" if (folder_ref is None or n["folder"] == folder_ref) \
+        else " _(" + n["folder"].name + ")_"
+    tail = "  <- start here" if level == 0 else ""
+    if i in seen:
+        out.append("  " * level + "- (cycle) `" + i + "` already appears above")
+        return
+    seen.add(i)
+    out.append("  " * level + "- [" + n["title"] + "](" + link_to(n, folder_ref) + ")"
+               + away + tail)
+    for c in children.get(i, []):
+        branch(c, children, everything, folder_ref, level + 1, seen, out)
+
+
+def open_block(group, everything, folder_ref, V):
     CURRENT = V["statuses"][0]
     UNVERIFIED = V["statuses"][3]
     TODO = V["types"][2]
-    BLOCKS = V["edges"][2]
 
+    group_ids = {n["id"] for n in group}
     todo = [n for n in group if n["type"] == TODO and n["status"] == CURRENT]
-    blocked_ids = {d for n in everything.values() if n["status"] == CURRENT
-                   for d in n["links"][BLOCKS]}
-    free = sorted([n for n in todo if n["id"] not in blocked_ids], key=lambda n: n["id"])
-    stuck = sorted([n for n in todo if n["id"] in blocked_ids], key=lambda n: n["id"])
+    children, blocked, roots = blocking_graph(everything, V)
+    free = sorted([n for n in todo if n["id"] not in blocked], key=lambda n: n["id"])
     doubt = sorted([n for n in group if n["status"] == UNVERIFIED], key=lambda n: n["id"])
 
     out = ["## Ready to do (" + str(len(free)) + ")", ""]
     for n in free:
-        out.append("- [" + n["title"] + "](" + prefix + "notes/" + n["id"] + ".md)")
-    out += ["", "## Blocked by another note (" + str(len(stuck)) + ")", ""]
-    for n in stuck:
-        who = [i for i, o in everything.items()
-               if o["status"] == CURRENT and n["id"] in o["links"][BLOCKS]]
-        out.append("- [" + n["title"] + "](" + prefix + "notes/" + n["id"] + ".md)"
-                   + " - waiting on `" + ", ".join(who) + "`")
-    out += ["", "## Unverified, needs checking (" + str(len(doubt)) + ")", ""]
+        out.append("- [" + n["title"] + "](" + link_to(n, folder_ref) + ")")
+
+    # Chains: the real order of the work, not a flat list of blocked items.
+    chains, reached = [], set()
+    for r in roots:
+        drawing, seen = [], set()
+        branch(r, children, everything, folder_ref, 0, seen, drawing)
+        if seen & group_ids:                    # this chain touches this project
+            chains.append(drawing)
+            reached |= (seen & blocked)
+    out += ["", "## Work chains (" + str(len(chains)) + ")", "",
+            "Each level waits on the one above it. Close a link and the next run",
+            "reports the one below as unblocked.", ""]
+    for drawing in chains:
+        out += drawing + [""]
+
+    # A cycle leaves blocked notes with no root. They must not vanish silently.
+    orphans = sorted(i for i in (blocked & group_ids) if i not in reached)
+    if orphans:
+        out += ["## Blocked inside a cycle (" + str(len(orphans)) + ")", "",
+                "These block each other, so none of them can start. Break the cycle.", ""]
+        for i in orphans:
+            out.append("- [" + everything[i]["title"] + "]("
+                       + link_to(everything[i], folder_ref) + ")")
+        out.append("")
+
+    out += ["## Unverified, needs checking (" + str(len(doubt)) + ")", ""]
     for n in doubt:
-        out.append("- [" + n["title"] + "](" + prefix + "notes/" + n["id"] + ".md)")
+        out.append("- [" + n["title"] + "](" + link_to(n, folder_ref) + ")")
     return out
 
 
@@ -366,7 +423,7 @@ def write_views(notes, folders, base, V):
         group = [n for n in notes.values() if n["folder"] == c]
         out += ["## " + c.name + "  (" + str(len(group)) + " notes)", ""]
         out += index_block(group, c.name + "/", V)
-        op += ["# " + c.name, ""] + open_block(group, notes, c.name + "/", V) + [""]
+        op += ["# " + c.name, ""] + open_block(group, notes, None, V) + [""]
 
         pi = ["# " + c.name + " - index", "",
               "Generated on " + str(TODAY) + ". **Do not edit by hand.**", ""] + HOWTO
@@ -374,7 +431,7 @@ def write_views(notes, folders, base, V):
         (c / V["index"]).write_text("\n".join(pi) + "\n", encoding="utf-8")
         po = ["# " + c.name + " - open", "",
               "Generated on " + str(TODAY) + ". **Do not edit by hand.**", ""]
-        po += open_block(group, notes, "", V)
+        po += open_block(group, notes, c, V)
         (c / V["open"]).write_text("\n".join(po) + "\n", encoding="utf-8")
 
     (base / V["index"]).write_text("\n".join(out) + "\n", encoding="utf-8")

@@ -93,7 +93,7 @@ linter can act on:
 |---|---|
 | `depends-on` | If that note changes, **this one needs re-reading**. |
 | `supersedes` | This note replaces that one, which becomes `superseded`. |
-| `blocks` | That work can't start until this closes. `OPEN.md` is built from it. |
+| `blocks` | That work can't start until this closes. The chains in `OPEN.md` are built from it. |
 | `related` | No direction, no consequence. |
 
 ## What it checks
@@ -123,10 +123,39 @@ are the ones that make the base behave like a system instead of a folder:
 ## Generated views, never hand-edited
 
 Each run rewrites `INDEX.md` (everything, by project and type) and `OPEN.md`
-(`todo` notes split into ready / blocked-by-another-note / unverified). Delete
-them and they come back identical. You change what's in them by editing a note's
-`status`, not by editing the list — which is exactly why the list can't drift
-from reality.
+(the work list). Delete them and they come back identical. You change what's in
+them by editing a note's `status`, not by editing the list — which is exactly
+why the list can't drift from reality.
+
+### Work chains
+
+`blocks` is transitive, so `OPEN.md` doesn't print a flat list of blocked items —
+it draws the order the work actually has to happen in:
+
+```markdown
+## Work chains (1)
+
+- [Ship version 0.9.0](notes/ship-090.md)  <- start here
+  - [Run the acceptance suite](notes/run-tests.md)
+    - [Rewrite the pricing page](notes/update-site.md)
+```
+
+This is how a conditional plan gets recorded without turning the knowledge base
+into a workflow engine. "When 0.9.0 ships we run the tests, and if they pass we
+update the site" becomes three notes and two `blocks` edges. Only the head of the
+chain shows under **Ready to do**; the rest stay out of your way until they're
+actually actionable.
+
+The branch — *if* they pass — is deliberately **not** modelled. You record what
+happened after the fact: a `fact` note with the numbers and the next link frees
+up, or an `incident` note with the cause and the chain stays put. Encoding
+hypothetical branches ahead of time is how a note system turns into a bad issue
+tracker.
+
+Two details that took a test each to get right: a chain that spans projects
+renders with the foreign project named beside the note, and a **cycle** — notes
+that block each other, so nothing can start — gets its own section instead of
+silently vanishing from the view for lack of a root.
 
 ## Multi-project, multi-language
 
@@ -173,7 +202,7 @@ fix notes rather than stack new ones, propagate, then run it again until clean.
 python tests/test_notelint.py
 ```
 
-Nineteen tests, no framework. Every check plants its own fault and asserts it
+Twenty-two tests, no framework. Every check plants its own fault and asserts it
 fires — a linter that never reports anything looks identical to a clean
 codebase, so each check has to be proven capable of failing.
 

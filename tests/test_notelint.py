@@ -214,6 +214,57 @@ def the_shipped_example_reports_its_three_planted_faults(base):
         assert expected in found, "example lost its planted fault: " + str(expected)
 
 
+def open_view(base, lang="en"):
+    """Render OPEN.md for the first project and return it as text."""
+    V = notelint.VOCAB[lang]
+    folders = notelint.projects(base)
+    notes, _ = notelint.load(folders, V)
+    group = [n for n in notes.values() if n["folder"] == folders[0]]
+    return "\n".join(notelint.open_block(group, notes, folders[0], V))
+
+
+@case
+def work_chains_show_the_whole_order(base):
+    note(base, "Alpha", "ship-090", title="Ship version 0.9.0",
+         type="todo", blocks="run-tests")
+    note(base, "Alpha", "run-tests", title="Run the acceptance suite",
+         type="todo", blocks="update-site")
+    note(base, "Alpha", "update-site", title="Rewrite the pricing page", type="todo")
+    text = open_view(base)
+
+    assert "## Work chains (1)" in text, "the three notes are one chain, not three items"
+    assert "- [Ship version 0.9.0]" in text
+    assert "  - [Run the acceptance suite]" in text, "second link must be indented once"
+    assert "    - [Rewrite the pricing page]" in text, "third link must be indented twice"
+    assert "<- start here" in text
+
+    ready = text.split("## Work chains")[0]
+    assert "Run the acceptance suite" not in ready, "blocked work must not look ready"
+    assert "Ship version 0.9.0" in ready, "the head of the chain is what you can do now"
+
+
+@case
+def closing_a_link_frees_the_next_one(base):
+    note(base, "Alpha", "ship-090", title="Ship version 0.9.0",
+         status="superseded", blocks="run-tests")
+    note(base, "Alpha", "run-tests", title="Run the acceptance suite", type="todo")
+    assert ("unblocked", "run-tests") in run(base), \
+        "when the blocker closes, the next link must be reported as free"
+    assert "Run the acceptance suite" in open_view(base).split("## Work chains")[0], \
+        "and it must move into Ready to do"
+
+
+@case
+def a_blocking_cycle_is_reported_not_hidden(base):
+    note(base, "Alpha", "first", title="One half of a deadlock",
+         type="todo", blocks="second")
+    note(base, "Alpha", "second", title="Other half of the same deadlock",
+         type="todo", blocks="first")
+    text = open_view(base)
+    assert "## Blocked inside a cycle (2)" in text, \
+        "a cycle has no root, so both notes would silently vanish from the view"
+
+
 def main():
     passed = failed = 0
     for fn in CASES:
