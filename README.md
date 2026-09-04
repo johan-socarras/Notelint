@@ -181,6 +181,26 @@ for a human reader:
 3. **Exit code 1** means "the knowledge base is inconsistent" is a condition you
    can gate on, not a judgment call.
 
+### The agent skill
+
+`skills/notelint/SKILL.md` is a [Claude Code](https://claude.com/claude-code)
+skill that teaches an agent to maintain a base by these rules. Install it by
+copying the folder:
+
+```bash
+cp -r skills/notelint ~/.claude/skills/
+```
+
+After that, "update the notes" reaches for it from any working directory, not
+just from inside the base.
+
+It is deliberately short — it *locates* the procedure instead of restating it, so
+it cannot drift out of sync with `docs/PROTOCOL.md`. What it adds is the handful
+of things no file in the repo says: that someone else may be editing the same
+base right now, that you must never invent a "How to verify" you haven't run,
+that a note is `dropped` with a reason rather than deleted, and that a silent
+update is indistinguishable from no update at all.
+
 `docs/PROTOCOL.md` is the routine I use: run the linter before writing anything,
 fix notes rather than stack new ones, propagate, then run it again until clean.
 
