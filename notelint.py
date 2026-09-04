@@ -35,6 +35,10 @@ DAYS_UNREVIEWED = 60
 # Directories at the base that are never projects.
 NEVER_A_PROJECT = {"templates", "tools", "docs", ".git", ".github", "node_modules"}
 
+# Regenerable junk: not material that anyone should have to claim with a note.
+GENERATED = {"__pycache__", ".pytest_cache", ".mypy_cache", "node_modules",
+             "target", ".venv", "venv"}
+
 # ---------------------------------------------------------------------------
 # Vocabulary. The note format is the same in every language; only the field
 # names change, so a team can keep notes in its own language.
@@ -271,7 +275,8 @@ def check(notes, clashes, base, V):
         blob = "\n".join(n["title"] + "\n" + n["body"] + "\n" + "\n".join(n["evidence"])
                          for n in notes.values() if n["folder"] == c)
         for entry in sorted(c.iterdir()):
-            if entry.name in ("notes", V["index"], V["open"]) or entry.name.startswith("."):
+            if (entry.name in ("notes", V["index"], V["open"])
+                    or entry.name in GENERATED or entry.name.startswith(".")):
                 continue
             children = sorted(entry.iterdir()) if entry.is_dir() else []
             for cand in [entry] + children:

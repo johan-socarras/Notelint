@@ -107,7 +107,7 @@ linter can act on:
 | `zombie` | A `superseded`/`dropped` note is still treated as live by a current one |
 | `unblocked` | A blocker closed, so blocked work is free and nobody noticed |
 | **`propagation`** | A note was reviewed **after** something that declared a dependency on it |
-| **`unclaimed`** | A file or folder is in the project and **no note explains why it exists** |
+| **`unclaimed`** | A file or folder is in the project and **no note explains why it exists** (build junk like `__pycache__`, `node_modules` and `target` is skipped) |
 | `duplicate?` | Two current notes in one project have near-identical titles |
 | `duplicate id`, `wrong project`, `format` | Structural mistakes |
 
@@ -202,7 +202,7 @@ fix notes rather than stack new ones, propagate, then run it again until clean.
 python tests/test_notelint.py
 ```
 
-Twenty-two tests, no framework. Every check plants its own fault and asserts it
+Twenty-three tests, no framework. Every check plants its own fault and asserts it
 fires — a linter that never reports anything looks identical to a clean
 codebase, so each check has to be proven capable of failing.
 

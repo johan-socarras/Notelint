@@ -162,6 +162,16 @@ def unclaimed_material(base):
 
 
 @case
+def build_junk_is_not_unclaimed_material(base):
+    note(base, "Alpha", "one")
+    for junk in ("__pycache__", "node_modules", "target"):
+        (base / "Alpha" / junk).mkdir(parents=True, exist_ok=True)
+        (base / "Alpha" / junk / "x.bin").write_text("x", encoding="utf-8")
+    assert not any(c == "unclaimed" for c, _ in run(base)), \
+        "regenerable junk must not be reported as material needing a note"
+
+
+@case
 def note_filed_in_the_wrong_project(base):
     note(base, "Alpha", "one")
     d = base / "Beta" / "notes"
