@@ -28,7 +28,42 @@ code: it reads the whole graph and reports what no longer holds together.
     Kestrel                evidence/screenshots
 ```
 
-## Try it in thirty seconds
+## Install
+
+One command. It creates a knowledge base, puts the tools inside it, installs the
+agent skill, and runs the linter once so you can see what it does.
+
+**Linux and macOS**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/johan-socarras/notelint/main/install.sh | sh
+```
+
+**Windows (PowerShell)**
+
+```powershell
+irm https://raw.githubusercontent.com/johan-socarras/notelint/main/install.ps1 | iex
+```
+
+The base goes in `~/knowledge-base` unless you say otherwise:
+
+```bash
+curl -fsSL .../install.sh | sh -s -- ~/my-brain
+```
+
+```powershell
+& ([scriptblock]::Create((irm .../install.ps1))) -Base C:\my-brain
+```
+
+The base is **self-contained**: the tools are installed inside it, so if you
+later move it into a synced folder, they travel with it. Re-running the
+installer is safe — it adds what is missing and leaves your files alone.
+
+Piping a script from the internet into a shell is a thing you should only do
+after reading the script. `install.sh` and `install.ps1` are in this repo for
+exactly that reason.
+
+## Or try it without installing anything
 
 ```bash
 git clone https://github.com/johan-socarras/notelint
@@ -120,6 +155,14 @@ are the ones that make the base behave like a system instead of a folder:
   you have thirty seconds of context and two months of "what is this, and can I
   delete it?". The linter refuses to let material sit there unexplained.
 
+Material is claimed by **citing its path** — in `evidence:`, or between backticks
+in the body — not by mentioning its name. Citing something deep also claims the
+directories above it, so quoting `evidence/shots/panel.md` does not leave
+`evidence` looking unclaimed. Matching on the bare name was the earlier
+behaviour and it had a hole you could drive a project through: a new directory
+called `legal`, `src` or `tests` never showed up, because those words were
+already written somewhere in the notes for an unrelated reason.
+
 ## Generated views, never hand-edited
 
 Each run rewrites `INDEX.md` (everything, by project and type) and `OPEN.md`
@@ -204,6 +247,68 @@ update is indistinguishable from no update at all.
 `docs/PROTOCOL.md` is the routine I use: run the linter before writing anything,
 fix notes rather than stack new ones, propagate, then run it again until clean.
 
+## Optional tools
+
+Two extras live in `tools/`. Both are standalone — `notelint.py` does not import
+either one, and if you delete them nothing breaks. They are here because a
+knowledge base you actually use every day ends up needing them.
+
+### `syncguard.py` — for working from more than one machine
+
+Keep the base in a synced folder and you will eventually open the laptop and
+start writing before the sync finished pulling what you did on the desktop. The
+sync client resolves that by leaving two files with `conflicted copy` in the
+name, and your base quietly grows a second truth.
+
+```sh
+python tools/syncguard.py . --status    # what every machine last reported
+python tools/syncguard.py . --wait 180  # block until the sync lands
+python tools/syncguard.py . --stamp     # "I finished here" - run when done
+```
+
+It hashes every note, and each machine stamps that hash when it finishes. The
+check runs on the **receiving** side: you never have to prove the other machine
+finished uploading — the machine you sit down at tells you whether it all
+arrived.
+
+It does not care which sync tool you use. OneDrive, Dropbox, Drive, Syncthing, a
+git remote, rsync, a NAS — it compares content, so anything that eventually makes
+two folders match will do. Configure it in `.sync/config.json`: turn it off
+entirely with `"enabled": false`, or list `"machines"` when you have three
+computers and only want two of them to count.
+
+Full guide, including the traps: [`docs/SYNC.md`](docs/SYNC.md).
+
+### `power.py` — shut down or suspend when the work is done
+
+For telling an agent "when you finish, shut the machine down". One file, same
+behaviour on Windows, Linux and macOS.
+
+```sh
+python tools/power.py shutdown --in 60          # countdown you can still cancel
+python tools/power.py suspend --in 30
+python tools/power.py shutdown --close code     # close apps first
+python tools/power.py shutdown --dry-run        # say what it would do
+```
+
+The countdown runs inside the process, which is what makes cancelling always the
+same gesture — Ctrl+C — regardless of platform.
+
+## Make it yours
+
+Everything here is small on purpose. The linter is one file; the guard is
+another; the power script is a third. No dependencies, no build step, no
+framework to learn before you can change a line.
+
+That is deliberate. The point of a knowledge base is that it fits the way *you*
+work, and the moment a tool is too big to read in a sitting, you stop adapting
+it and start working around it.
+
+So: fork it, rewrite the checks, add your own, change the vocabulary, wire it
+into whatever you already use. If you would rather not do it by hand, hand a file
+to whichever AI assistant you use and describe what you want — each one is small
+enough to pass whole, and `tests/` will tell you if you broke something.
+
 ## Design notes
 
 - **No dependencies, one file.** The parser reads a deliberately small subset of
@@ -222,7 +327,7 @@ fix notes rather than stack new ones, propagate, then run it again until clean.
 python tests/test_notelint.py
 ```
 
-Twenty-three tests, no framework. Every check plants its own fault and asserts it
+Twenty-five tests, no framework. Every check plants its own fault and asserts it
 fires — a linter that never reports anything looks identical to a clean
 codebase, so each check has to be proven capable of failing.
 
