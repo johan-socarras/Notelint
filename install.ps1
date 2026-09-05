@@ -70,8 +70,14 @@ try {
     $ProgressPreference = $old
     Expand-Archive -Path $zip -DestinationPath $tmp -Force
 
-    $src = Get-ChildItem -Path $tmp -Directory | Where-Object { $_.Name -like 'notelint-*' } | Select-Object -First 1
-    if (-not $src) { Die "Unexpected archive layout." }
+    # Take whatever single directory the zip unpacked into. Matching on the name
+    # would break the day the repository is renamed - GitHub names the directory
+    # after the repo.
+    $src = Get-ChildItem -Path $tmp -Directory | Select-Object -First 1
+    if (-not $src) { Die "Unexpected archive layout: nothing unpacked." }
+    if (-not (Test-Path (Join-Path $src.FullName 'notelint.py'))) {
+        Die "Unexpected archive layout: no notelint.py in $($src.FullName)."
+    }
     Write-Ok "Downloaded"
 
     # --------------------------------------------------------------- the base
@@ -128,7 +134,7 @@ status: current
 created: $today
 reviewed: $today
 expires:
-evidence: []
+evidence:
 links:
   depends-on: []
   supersedes: []

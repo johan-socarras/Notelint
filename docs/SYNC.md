@@ -37,6 +37,13 @@ tells you whether everything arrived.
 The hash normalises line endings, so a base edited on Windows and on Linux
 produces the same value for the same content.
 
+It also **skips the generated views**. `INDEX.md` and `OPEN.md` are derived from
+the notes and carry the date they were written, so two machines holding identical
+notes still produce different bytes there. Hashing them would report a false "out
+of sync" the moment one machine ran the linter before checking. The guard
+compares sources, not derivatives — which also means you can run the linter and
+the guard in either order.
+
 ## Which sync tool to use
 
 The guard does not care. It compares content, so anything that eventually makes

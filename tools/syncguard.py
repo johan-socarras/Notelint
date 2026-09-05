@@ -90,6 +90,12 @@ CONFLICT_MARKERS = (
     "(case conflict)",
 )
 
+# The generated views are derived from the notes and stamped with the date they
+# were written, so two machines holding identical notes still produce different
+# bytes here. Hashing them would report a false "out of sync" the moment one
+# machine ran the linter before checking. Compare sources, not derivatives.
+GENERATED_VIEWS = {"INDEX.md", "OPEN.md", "INDICE.md", "ABIERTO.md"}
+
 
 def load_config(base: Path) -> dict:
     """Read .sync/config.json. Every key is optional; absent means defaults."""
@@ -127,6 +133,8 @@ def notes_in(base: Path, skip: set):
     for path in base.rglob("*.md"):
         rel = path.relative_to(base)
         if is_skipped(rel, skip) or is_conflict_copy(path.name):
+            continue
+        if path.name in GENERATED_VIEWS:
             continue
         found.append(rel)
     # Sort on an explicit "/" key so Windows and POSIX produce the same order.

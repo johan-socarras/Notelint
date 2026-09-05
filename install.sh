@@ -74,8 +74,12 @@ else
 fi
 tar -xzf "$TMP/src.tar.gz" -C "$TMP" || die "Could not unpack the archive."
 
-SRC=$(find "$TMP" -maxdepth 1 -type d -name 'notelint-*' | head -n 1)
-[ -d "$SRC" ] || die "Unexpected archive layout."
+# Take whatever single directory the tarball unpacked into. Matching on the
+# name would break the day the repository is renamed - GitHub names the
+# directory after the repo, case and all.
+SRC=$(find "$TMP" -mindepth 1 -maxdepth 1 -type d | head -n 1)
+[ -d "$SRC" ] || die "Unexpected archive layout: nothing unpacked."
+[ -f "$SRC/notelint.py" ] || die "Unexpected archive layout: no notelint.py in $SRC."
 ok "Downloaded"
 
 # ----------------------------------------------------------------- the base
@@ -131,7 +135,7 @@ status: current
 created: $TODAY
 reviewed: $TODAY
 expires:
-evidence: []
+evidence:
 links:
   depends-on: []
   supersedes: []
