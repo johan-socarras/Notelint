@@ -189,6 +189,48 @@ def evidence_exists(e, folder, base):
 # ---------------------------------------------------------------------------
 # The checks.
 # ---------------------------------------------------------------------------
+RE_BACKTICK = re.compile(r"`([^`\n]+)`")
+
+
+def claimed_paths(project_notes, folder):
+    """Paths the notes of one project claim, relative to that project.
+
+    Material is claimed by citing its path, not by naming the file. What counts
+    is the `evidence:` field and paths written between backticks in the body.
+    Citing something deep also claims its parent directories, so that quoting
+    `evidence/artifacts/x.md` does not leave `evidence` looking unclaimed.
+
+    Matching on the bare name instead is what made a new directory called
+    `legal`, `src` or `tests` never show up: those words were already written
+    somewhere in the notes for an unrelated reason.
+    """
+    raw = []
+    for n in project_notes:
+        raw.extend(n["evidence"])
+        raw.extend(RE_BACKTICK.findall(n["body"]))
+
+    out = set()
+    for item in raw:
+        if item.startswith("http://") or item.startswith("https://"):
+            continue
+        # Evidence lines may carry a trailing comment; keep the path part.
+        path = item.split(" §")[0].split(" (")[0].split(" -")[0]
+        path = path.strip().strip("/\\").replace("\\", "/")
+        if not path or path.startswith("-") or " " in path.split("/")[0]:
+            continue
+        parts = [p for p in path.split("/") if p not in ("", ".")]
+        if not parts or ".." in parts:
+            continue
+        # Either relative to the project, or to the base naming the project first.
+        if parts[0].lower() == folder.name.lower():
+            parts = parts[1:]
+        elif not (folder / parts[0]).exists():
+            continue
+        for i in range(1, len(parts) + 1):
+            out.add("/".join(parts[:i]).lower())
+    return out
+
+
 def check(notes, clashes, base, V):
     out = []
     CURRENT, SUPERSEDED, DROPPED, UNVERIFIED = V["statuses"]
@@ -270,10 +312,9 @@ def check(notes, clashes, base, V):
                 out.append(("propagation", i,
                             d + " was reviewed " + str(rb) + ", this is still at " + str(ra)))
 
-    # 7. unclaimed material: something is in the project and no note mentions it
+    # 7. unclaimed material: something is in the project and no note claims it
     for c in {n["folder"] for n in notes.values()}:
-        blob = "\n".join(n["title"] + "\n" + n["body"] + "\n" + "\n".join(n["evidence"])
-                         for n in notes.values() if n["folder"] == c)
+        claimed = claimed_paths([n for n in notes.values() if n["folder"] == c], c)
         for entry in sorted(c.iterdir()):
             if (entry.name in ("notes", V["index"], V["open"])
                     or entry.name in GENERATED or entry.name.startswith(".")):
@@ -282,9 +323,9 @@ def check(notes, clashes, base, V):
             for cand in [entry] + children:
                 if cand.name.startswith("."):
                     continue
-                if cand.name not in blob:
-                    out.append(("unclaimed", c.name,
-                                str(cand.relative_to(c)).replace("\\", "/")))
+                rel = str(cand.relative_to(c)).replace("\\", "/")
+                if rel.lower() not in claimed:
+                    out.append(("unclaimed", c.name, rel))
 
     # 8. probable duplicates, within one project
     live = [(i, keywords(n["title"]), n["folder"].name)

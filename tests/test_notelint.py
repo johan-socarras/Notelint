@@ -172,6 +172,28 @@ def build_junk_is_not_unclaimed_material(base):
 
 
 @case
+def naming_a_directory_does_not_claim_it(base):
+    # The word "tests" appears in the prose for an unrelated reason. That must
+    # not silence a real tests/ directory nobody has documented.
+    (base / "Alpha" / "tests").mkdir(parents=True, exist_ok=True)
+    (base / "Alpha" / "tests" / "x.md").write_text("x", encoding="utf-8")
+    note(base, "Alpha", "one",
+         body="We ran tests against the staging box and they passed.")
+    assert ("unclaimed", "Alpha") in run(base), \
+        "material is claimed by citing its path, not by using the word"
+
+
+@case
+def citing_a_path_claims_it_and_its_parents(base):
+    deep = base / "Alpha" / "evidence" / "shots"
+    deep.mkdir(parents=True, exist_ok=True)
+    (deep / "panel.md").write_text("x", encoding="utf-8")
+    note(base, "Alpha", "one", body="See `evidence/shots/panel.md` for the run.")
+    assert not any(c == "unclaimed" for c, _ in run(base)), \
+        "citing something deep must also claim the directories above it"
+
+
+@case
 def note_filed_in_the_wrong_project(base):
     note(base, "Alpha", "one")
     d = base / "Beta" / "notes"
