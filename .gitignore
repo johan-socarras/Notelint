@@ -9,3 +9,6 @@ Thumbs.db
 /notas/
 /INDICE.md
 /ABIERTO.md
+
+# Sync guard stamps are per-machine state, not part of the project.
+/.sync/

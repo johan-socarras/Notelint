@@ -1,0 +1,16 @@
+# Normalise line endings in the repository to LF.
+#
+# This is not cosmetic: install.sh is fetched straight from raw.githubusercontent
+# and piped to sh. If it carried CRLF, every line would end in \r and the shell
+# would fail with "bad interpreter: /bin/sh^M" on the first line.
+* text=auto eol=lf
+
+# PowerShell is happier with CRLF, and this file is only ever run on Windows.
+*.ps1 text eol=crlf
+
+# Never touch these.
+*.png binary
+*.jpg binary
+*.gif binary
+*.pdf binary
+*.zip binary

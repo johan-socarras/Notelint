@@ -58,6 +58,11 @@ content. Both are generated — never edit them by hand.
   `reviewed` date and the file's modification time. Do not overwrite recent work,
   and if the change you were about to make is already there, say so and move on
   instead of redoing it.
+- **If `tools/syncguard.py` is present, the base is synced across machines.**
+  Run `python tools/syncguard.py <base> --check` before writing. A non-zero exit
+  means this machine has a stale copy and the sync has not landed — say so and
+  wait, rather than writing on top of it. When you finish a session that changed
+  notes, run `--stamp`.
 - **Never invent a "How to verify".** If you cannot name the command, path or
   screen where someone could check the claim, the note is not `current` — it is
   `unverified`. A verification step that does not work is worse than none,
