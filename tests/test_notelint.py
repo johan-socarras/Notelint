@@ -60,6 +60,12 @@ def run(base, lang="en"):
     return {(c, i) for c, i, _ in notelint.check(notes, clashes, base, V)}
 
 
+def loaded(base, lang="en"):
+    """Return (notes, V) for tests that call something other than check()."""
+    V = notelint.VOCAB[lang]
+    return notelint.load(notelint.projects(base), V)[0], V
+
+
 CASES = []
 
 
@@ -181,6 +187,43 @@ def naming_a_directory_does_not_claim_it(base):
          body="We ran tests against the staging box and they passed.")
     assert ("unclaimed", "Alpha") in run(base), \
         "material is claimed by citing its path, not by using the word"
+
+
+@case
+def verifications_come_out_dependencies_first(base):
+    note(base, "Alpha", "leaf", title="Built on top", depends="ground")
+    note(base, "Alpha", "ground", title="The thing underneath")
+    notes, V = loaded(base)
+    pos = notelint.topo_order(notes, V)
+    assert pos["ground"] < pos["leaf"], \
+        "reviewing bottom-up is what stops spurious propagation findings"
+
+
+@case
+def a_dependency_cycle_still_produces_an_order(base):
+    note(base, "Alpha", "one", depends="two")
+    note(base, "Alpha", "two", title="Other wording entirely", depends="one")
+    notes, V = loaded(base)
+    pos = notelint.topo_order(notes, V)
+    assert set(pos) == {"one", "two"}, "a cycle must not drop notes from the order"
+
+
+@case
+def the_verify_section_is_found_by_either_heading(base):
+    for heading in ("How to verify", "How to check", "Cómo se comprueba"):
+        assert notelint.is_verification(heading), heading
+    assert not notelint.is_verification("What it is")
+
+
+@case
+def oldest_unreviewed_lists_the_stalest_first(base):
+    old = str(TODAY - datetime.timedelta(days=40))
+    note(base, "Alpha", "stale", title="Nobody has looked at this", reviewed=old)
+    note(base, "Alpha", "fresh", title="Confirmed today")
+    notes, V = loaded(base)
+    lines = "\n".join(notelint.oldest_block(notes, V))
+    assert lines.index("stale") < lines.index("fresh"), \
+        "the longest unreviewed must come first"
 
 
 @case

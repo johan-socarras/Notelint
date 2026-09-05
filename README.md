@@ -119,6 +119,18 @@ Without that last section, in two months nobody can tell a fact from folklore,
 and the only way to find out is to audit everything from scratch. With it,
 verifying a claim costs one command.
 
+And you can get them all at once, ordered so you check what something rests on
+before you check it:
+
+```bash
+python notelint.py --verify        # every "How to verify", dependencies first
+python notelint.py --verify 60     # only notes unreviewed for over 60 days
+```
+
+It runs nothing — that judgment stays yours. You run each one and touch
+`reviewed` only where the result matched what the note predicted. A different
+result is not a failed command, it's a finding: the note is wrong, fix it.
+
 ## The links are typed, and that is the point
 
 `related:` is cheap and says nothing. The other three carry consequences the
@@ -169,6 +181,10 @@ Each run rewrites `INDEX.md` (everything, by project and type) and `OPEN.md`
 (the work list). Delete them and they come back identical. You change what's in
 them by editing a note's `status`, not by editing the list — which is exactly
 why the list can't drift from reality.
+
+`INDEX.md` ends with **the eight longest unreviewed**, across every project.
+That turns the 60-day cliff into a trickle: confirm a few each session and the
+`unreviewed` warning never arrives as an avalanche you have to ignore.
 
 ### Work chains
 
@@ -327,7 +343,7 @@ enough to pass whole, and `tests/` will tell you if you broke something.
 python tests/test_notelint.py
 ```
 
-Twenty-five tests, no framework. Every check plants its own fault and asserts it
+Twenty-nine tests, no framework. Every check plants its own fault and asserts it
 fires — a linter that never reports anything looks identical to a clean
 codebase, so each check has to be proven capable of failing.
 

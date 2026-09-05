@@ -231,6 +231,111 @@ def claimed_paths(project_notes, folder):
     return out
 
 
+RE_SECTION = re.compile(r"^##\s+(.+?)\s*$", re.M)
+
+
+def sections(body):
+    """[(title, text)] for each '## ' heading in the body, in order."""
+    out = []
+    marks = list(RE_SECTION.finditer(body))
+    for k, m in enumerate(marks):
+        end = marks[k + 1].start() if k + 1 < len(marks) else len(body)
+        out.append((m.group(1), body[m.end():end]))
+    return out
+
+
+def is_verification(title):
+    t = fold(title)
+    return (t.startswith("how to verify") or t.startswith("how to check")
+            or t.startswith("como se comprueba") or t.startswith("como se aplica"))
+
+
+def days_unreviewed(n):
+    r = as_date(n["reviewed"])
+    return (TODAY - r).days if r else None
+
+
+def age(n):
+    d = days_unreviewed(n)
+    return "" if d is None else "  (" + str(d) + "d)"
+
+
+def topo_order(notes, V):
+    """Position of each note with its dependencies before it.
+
+    Reviewing bottom-up is what stops you firing spurious propagation findings
+    at yourself: confirm what something rests on before confirming it.
+    """
+    DEPENDS = V["edges"][0]
+    pending = {i: [d for d in n["links"][DEPENDS] if d in notes and d != i]
+               for i, n in notes.items()}
+    pos, done = {}, []
+    left = set(pending)
+    while left:
+        layer = sorted(i for i in left if all(d in pos for d in pending[i]))
+        if not layer:                      # a cycle: break it alphabetically
+            layer = [min(left)]
+        for i in layer:
+            pos[i] = len(done)
+            done.append(i)
+        left -= set(layer)
+    return pos
+
+
+def print_verifications(notes, folders, V, days):
+    """Print every 'How to verify' section, dependencies first.
+
+    It runs nothing. You run each one and touch `reviewed` only on the ones that
+    gave what the note predicted. A different result is a finding: fix the note.
+    """
+    CURRENT = V["statuses"][0]
+    IDEA = V["types"][3]
+    names = {c.name for c in folders}
+    which = [n for n in notes.values()
+             if n["folder"].name in names and n["status"] == CURRENT
+             and n["type"] != IDEA]
+    if days is not None:
+        which = [n for n in which if (days_unreviewed(n) or 0) > days]
+    pos = topo_order(notes, V)
+    which.sort(key=lambda n: (pos.get(n["id"], 0), n["id"]))
+
+    print("")
+    print("  " + str(len(which))
+          + " verifications, dependencies first (the ones others rest on).")
+    print("  Nothing is run: you run each, and touch 'reviewed' only if it holds.")
+    for n in which:
+        found = [body for t, body in sections(n["body"]) if is_verification(t)]
+        text = found[0].strip() if found else "(no section)"
+        print("")
+        print("  -- " + n["id"] + "  [" + n["folder"].name + "]  reviewed "
+              + n["reviewed"] + age(n))
+        for line in text.splitlines():
+            print("     " + line)
+    print("")
+
+
+def oldest_block(notes, V, how_many=8):
+    """The current notes longest unreviewed, across every project.
+
+    Turns the 60-day cliff into a trickle: review a few each session and the
+    warning never arrives all at once.
+    """
+    CURRENT = V["statuses"][0]
+    IDEA = V["types"][3]
+    alive = [n for n in notes.values()
+             if n["status"] == CURRENT and n["type"] != IDEA and as_date(n["reviewed"])]
+    if not alive:
+        return []
+    alive.sort(key=lambda n: (as_date(n["reviewed"]), n["id"]))
+    out = ["## The " + str(how_many) + " longest unreviewed", "",
+           "Across every project. Reviewing a few each session keeps the 60-day",
+           "warning from arriving all at once.", ""]
+    for n in alive[:how_many]:
+        out.append("- [" + n["title"] + "](" + link_to(n, None) + ") _("
+                   + n["folder"].name + ")_ - reviewed " + n["reviewed"] + age(n))
+    return out + [""]
+
+
 def check(notes, clashes, base, V):
     out = []
     CURRENT, SUPERSEDED, DROPPED, UNVERIFIED = V["statuses"]
@@ -480,6 +585,8 @@ def write_views(notes, folders, base, V):
         po += open_block(group, notes, c, V)
         (c / V["open"]).write_text("\n".join(po) + "\n", encoding="utf-8")
 
+    out += oldest_block(notes, V)
+
     (base / V["index"]).write_text("\n".join(out) + "\n", encoding="utf-8")
     (base / V["open"]).write_text("\n".join(op) + "\n", encoding="utf-8")
 
@@ -493,6 +600,9 @@ def main(argv=None):
     ap.add_argument("--lang", choices=sorted(VOCAB), help="field vocabulary (default: detect)")
     ap.add_argument("--report-only", action="store_true", help="do not write the indexes")
     ap.add_argument("--exit-zero", action="store_true", help="always exit 0")
+    ap.add_argument("--verify", nargs="?", type=int, const=-1, metavar="DAYS",
+                    help="print every 'How to verify' section, dependencies first; "
+                         "with DAYS, only notes unreviewed for longer than that")
     a = ap.parse_args(argv)
 
     base = Path(a.base).resolve()
@@ -514,6 +624,11 @@ def main(argv=None):
             return 2
 
     notes, clashes = load(folders, V)
+
+    if a.verify is not None:
+        print_verifications(notes, folders, V, None if a.verify < 0 else a.verify)
+        return 0
+
     findings = check(notes, clashes, base, V)
 
     print("")
