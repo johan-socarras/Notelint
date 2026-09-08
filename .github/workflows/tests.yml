@@ -1,0 +1,66 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # 3.8 is the floor the README promises, and it is the one most likely
+          # to break: ubuntu-latest no longer ships it, hence the pinned image.
+          - { os: ubuntu-22.04, python: "3.8" }
+          - { os: ubuntu-latest, python: "3.13" }
+          - { os: macos-latest, python: "3.13" }
+          - { os: windows-latest, python: "3.13" }
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Tests
+        run: python tests/test_notelint.py
+
+      - name: The bundled example still reports its three planted faults
+        shell: bash
+        run: |
+          # The step shell runs with -e, so capture the code instead of
+          # letting the expected failure abort the step.
+          rc=0
+          python notelint.py example --report-only || rc=$?
+          # 1 is the documented "there are findings" code, and the example
+          # ships three on purpose. 0 would mean the checks stopped firing.
+          test $rc -eq 1 || { echo "expected exit 1, got $rc"; exit 1; }
+
+      - name: The installer's own seed note passes the linter
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          # Regression guard for the BOM: Set-Content -Encoding UTF8 under
+          # Windows PowerShell 5.1 writes one, and the linter used to reject
+          # the very note the installer had just written.
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File install.ps1 -Base "$env:RUNNER_TEMP\kb"
+          if ($LASTEXITCODE -ne 0) { throw "installer failed" }
+          $seed = "$env:RUNNER_TEMP\kb\Example\notes\what-this-project-is.md"
+          $b = [System.IO.File]::ReadAllBytes($seed)
+          if ($b[0] -eq 0xEF -and $b[1] -eq 0xBB -and $b[2] -eq 0xBF) {
+            throw "the seed note was written with a BOM"
+          }
+
+      - name: The installer runs end to end
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          sh install.sh "$RUNNER_TEMP/kb"
+          for p in tools/notelint.py PROTOCOL.md templates/note.md tools/syncguard.py; do
+            test -e "$RUNNER_TEMP/kb/$p" || { echo "MISSING $p"; exit 1; }
+          done

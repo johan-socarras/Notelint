@@ -26,21 +26,24 @@ session rather than guessing each time.
 ## 2. Run the linter before reading or writing anything
 
 ```bash
-python notelint.py <base>
+cd <base> && python tools/notelint.py .    # a base made by the installer
+python notelint.py <base>                # a clone of the repository
 ```
 
 Its report is the starting point — not memory, and not whatever looks urgent.
 Exit code `1` means there are findings. Read them first, and let them tell you
 what the base needs before you decide what to add.
 
-## 3. Follow `docs/PROTOCOL.md`
+## 3. Follow the protocol
 
-Eight steps and three rules, in the repository. **Read it and obey it**; do not
-improvise a shortened version. In particular it is what tells you to *fix* an
+Eight steps and three rules. In a base made by the installer it is
+`<base>/PROTOCOL.md`; in a clone of the repository it is `docs/PROTOCOL.md`.
+**Read it and obey it**; do not improvise a shortened version. In particular it is what tells you to *fix* an
 existing note rather than stack a new one on top, and to propagate a change to
 whatever declared a dependency on it.
 
-For the shape of a note and what each field means, use `templates/note.md`.
+For the shape of a note and what each field means, use `templates/note.md`,
+which sits beside the protocol in both layouts.
 `OPEN.md` shows the work (with blocking chains in order) and `INDEX.md` shows the
 content. Both are generated — never edit them by hand.
 
@@ -75,7 +78,7 @@ content. Both are generated — never edit them by hand.
 
 ## Why this skill is short
 
-The procedure lives in `docs/PROTOCOL.md`, the format in `templates/note.md`, and
+The procedure lives in the protocol file, the format in `templates/note.md`, and
 the facts live in the notes. **If this skill restated them it would become a
 fourth document that drifts out of sync** — exactly what the knowledge base
 exists to prevent.

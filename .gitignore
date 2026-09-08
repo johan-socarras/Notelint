@@ -5,7 +5,7 @@ venv/
 .DS_Store
 Thumbs.db
 
-# El proyecto del cerebro vive en esta misma carpeta; sus notas son privadas.
+# This repo doubles as a knowledge base of its own; those notes are private.
 /notas/
 /INDICE.md
 /ABIERTO.md

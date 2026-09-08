@@ -48,11 +48,11 @@ irm https://raw.githubusercontent.com/johan-socarras/notelint/main/install.ps1 |
 The base goes in `~/knowledge-base` unless you say otherwise:
 
 ```bash
-curl -fsSL .../install.sh | sh -s -- ~/my-brain
+curl -fsSL https://raw.githubusercontent.com/johan-socarras/notelint/main/install.sh | sh -s -- ~/my-brain
 ```
 
 ```powershell
-& ([scriptblock]::Create((irm .../install.ps1))) -Base C:\my-brain
+& ([scriptblock]::Create((irm https://raw.githubusercontent.com/johan-socarras/notelint/main/install.ps1))) -Base C:\my-brain
 ```
 
 The base is **self-contained**: the tools are installed inside it, so if you
@@ -68,8 +68,12 @@ exactly that reason.
 ```bash
 git clone https://github.com/johan-socarras/notelint
 cd notelint
-python notelint.py example
+python notelint.py example --report-only
 ```
+
+`--report-only` leaves the tree alone. Drop it and the run also rewrites
+`INDEX.md` and `OPEN.md`, which are committed here so you can read them without
+running anything.
 
 No dependencies, Python 3.8+. The bundled example ships with **three deliberate
 faults** so the first run shows you what a finding looks like. Exit code is `1`
@@ -88,13 +92,16 @@ work — a section saying **how to check whether it is still true**:
 
 ```markdown
 ---
+# type:   decision | fact | todo | idea | incident | reference
+# status: current | superseded | dropped | unverified
+# expires: optional, re-verify after this date
 title: Feeds are polled every 5 minutes, not every minute
-type: fact             # decision | fact | todo | idea | incident | reference
+type: fact
 project: Kestrel
-status: current        # current | superseded | dropped | unverified
+status: current
 created: 2026-08-20
 reviewed: 2026-08-20
-expires:               # optional: re-verify after this date
+expires:
 evidence:
   - evidence/bench-2026-08-20.md
   - https://example.com/rfc
@@ -123,8 +130,8 @@ And you can get them all at once, ordered so you check what something rests on
 before you check it:
 
 ```bash
-python notelint.py --verify        # every "How to verify", dependencies first
-python notelint.py --verify 60     # only notes unreviewed for over 60 days
+python notelint.py example --verify        # every "How to verify", dependencies first
+python notelint.py example --verify 15     # only notes unreviewed for over 15 days
 ```
 
 It runs nothing — that judgment stays yours. You run each one and touch
@@ -175,10 +182,28 @@ behaviour and it had a hole you could drive a project through: a new directory
 called `legal`, `src` or `tests` never showed up, because those words were
 already written somewhere in the notes for an unrelated reason.
 
+One limit worth knowing before it puzzles you: a path with a space in it — or
+with `" -"` anywhere in the name, like `Q3 Report - final.pdf` — cannot be
+claimed at all, so it keeps showing up under `unclaimed` however you cite it.
+Rename the file if you want it to settle.
+
+## Flags
+
+| Flag | What it does |
+|---|---|
+| `--report-only` | Report, but do not write `INDEX.md` / `OPEN.md` |
+| `--force` | Rewrite a view even if this tool did not write it |
+| `--project NAME` | Report on one project only (repeatable) |
+| `--lang en\|es` | Field vocabulary (default: detect) |
+| `--verify [DAYS]` | Print every "How to verify", dependencies first |
+| `--exit-zero` | Always exit 0, for when you do not want CI to fail |
+
 ## Generated views, never hand-edited
 
 Each run rewrites `INDEX.md` (everything, by project and type) and `OPEN.md`
-(the work list). Delete them and they come back identical. You change what's in
+(the work list). Delete them and they come back identical. A file of your own
+already sitting under either name is left alone — the linter only replaces what
+it wrote itself, unless you pass `--force`. You change what's in
 them by editing a note's `status`, not by editing the list — which is exactly
 why the list can't drift from reality.
 
@@ -343,7 +368,7 @@ enough to pass whole, and `tests/` will tell you if you broke something.
 python tests/test_notelint.py
 ```
 
-Twenty-nine tests, no framework. Every check plants its own fault and asserts it
+Thirty-five tests, no framework. Every check plants its own fault and asserts it
 fires — a linter that never reports anything looks identical to a clean
 codebase, so each check has to be proven capable of failing.
 

@@ -340,6 +340,78 @@ def a_blocking_cycle_is_reported_not_hidden(base):
         "a cycle has no root, so both notes would silently vanish from the view"
 
 
+# --------------------------------------------------------------------------
+# Encoding and frontmatter shapes the parser used to swallow or die on.
+# --------------------------------------------------------------------------
+
+
+@case
+def a_utf8_bom_does_not_break_a_valid_note(base):
+    note(base, "Alpha", "one")
+    p = base / "Alpha" / "notes" / "one.md"
+    p.write_bytes(b"\xef\xbb\xbf" + p.read_bytes())
+    assert run(base) == set(), \
+        "a BOM is what PowerShell 5.1 writes; the note is still valid"
+
+
+@case
+def a_note_that_is_not_utf8_is_reported_not_fatal(base):
+    note(base, "Alpha", "one")
+    p = base / "Alpha" / "notes" / "one.md"
+    p.write_bytes(p.read_text(encoding="utf-8").replace(
+        "Body.", "Caf\u00e9").encode("latin-1"))
+    found = run(base)
+    assert any(c == "format" for c, _ in found), \
+        "a non-UTF-8 note must be a finding, not an unhandled exception"
+
+
+@case
+def frontmatter_never_closed_is_reported(base):
+    note(base, "Alpha", "one")
+    p = base / "Alpha" / "notes" / "one.md"
+    head = p.read_text(encoding="utf-8").split("\n---", 1)[0]
+    p.write_text(head + "\n", encoding="utf-8")
+    assert ("format", "one") in run(base), \
+        "without the closing --- the body is empty and nothing in it is checked"
+
+
+@case
+def links_written_as_a_block_list_are_not_swallowed(base):
+    note(base, "Alpha", "one")
+    p = base / "Alpha" / "notes" / "one.md"
+    p.write_text(p.read_text(encoding="utf-8").replace(
+        "  depends-on: []", "  depends-on:\n    - ghost"), encoding="utf-8")
+    assert ("broken link", "one") in run(base), \
+        "the block form is what YAML suggests; losing it silently loses blocks:"
+
+
+@case
+def a_view_the_tool_did_not_write_is_left_alone(base):
+    note(base, "Alpha", "one")
+    mine = base / "INDEX.md"
+    mine.write_text("# My own index\n\nHand written, and not by notelint.\n",
+                    encoding="utf-8")
+    V = notelint.VOCAB["en"]
+    folders = notelint.projects(base)
+    notes, _ = notelint.load(folders, V)
+    notelint.write_views(notes, folders, base, V)
+    assert "Hand written" in mine.read_text(encoding="utf-8"), \
+        "the installer promises existing files are untouched; honour it"
+
+
+@case
+def force_replaces_a_view_the_tool_did_not_write(base):
+    note(base, "Alpha", "one")
+    mine = base / "INDEX.md"
+    mine.write_text("# My own index\n", encoding="utf-8")
+    V = notelint.VOCAB["en"]
+    folders = notelint.projects(base)
+    notes, _ = notelint.load(folders, V)
+    notelint.write_views(notes, folders, base, V, force=True)
+    assert "Do not edit by hand" in mine.read_text(encoding="utf-8"), \
+        "--force is the documented way out"
+
+
 def main():
     passed = failed = 0
     for fn in CASES:

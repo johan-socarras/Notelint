@@ -27,7 +27,7 @@ function Write-Step($t) { Write-Host "`n=== $t ===" -ForegroundColor Cyan }
 function Write-Ok($t)   { Write-Host "  OK  " -ForegroundColor Green -NoNewline; Write-Host $t }
 function Write-Warn($t) { Write-Host " WARN " -ForegroundColor Yellow -NoNewline; Write-Host $t }
 function Write-Dim($t)  { Write-Host "      $t" -ForegroundColor DarkGray }
-function Die($t)        { Write-Host " FAIL " -ForegroundColor Red -NoNewline; Write-Host $t; exit 1 }
+function Die($t)        { Write-Host " FAIL " -ForegroundColor Red -NoNewline; Write-Host $t; throw "notelint installer: $t" }
 
 Write-Host ""
 Write-Host "  notelint - a linter for a knowledge base that does not rot" -ForegroundColor Cyan
@@ -40,20 +40,30 @@ $py = $null
 foreach ($c in @('python', 'python3', 'py')) {
     $cmd = Get-Command $c -ErrorAction SilentlyContinue
     if (-not $cmd) { continue }
-    try {
-        $args = if ($c -eq 'py') { @('-3', '-c', 'import sys; sys.exit(0 if sys.version_info >= (3,8) else 1)') }
-                else { @('-c', 'import sys; sys.exit(0 if sys.version_info >= (3,8) else 1)') }
-        & $cmd.Source @args 2>$null
-        if ($LASTEXITCODE -eq 0) {
-            $py = if ($c -eq 'py') { "$($cmd.Source) -3" } else { $cmd.Source }
-            break
-        }
-    } catch { }
+    $probe = 'import sys; sys.exit(0 if sys.version_info >= (3,8) else 1)'
+    $pre = if ($c -eq 'py') { @('-3') } else { @() }
+    # Do not redirect a native command's stderr while EAP is 'Stop': under
+    # Windows PowerShell 5.1 anything Python writes to stderr on startup
+    # becomes a terminating error, and the candidate was dropped without
+    # saying why.
+    $saved = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try { & $cmd.Source @pre '-c' $probe 2>&1 | Out-Null }
+    catch { Write-Dim ("skipped ${c}: " + $_.Exception.Message) }
+    finally { $ErrorActionPreference = $saved }
+    if ($LASTEXITCODE -eq 0) {
+        # Executable and arguments kept apart, never interpolated into a
+        # string: 'C:\Program Files\Python312\python.exe' split in two.
+        $pyExe = $cmd.Source
+        $pyPre = $pre
+        $py = $pyExe
+        break
+    }
 }
 if (-not $py) {
     Die "Python 3.8+ is required. Install it from python.org or: winget install Python.Python.3.12"
 }
-Write-Ok ((& ([scriptblock]::Create("$py --version")) 2>&1) -join ' ')
+Write-Ok ((& $pyExe @pyPre '--version' 2>&1) -join ' ')
 
 # ------------------------------------------------------------------- download
 Write-Step "Downloading notelint"
@@ -157,7 +167,11 @@ true. If you cannot name one, this note is not ``current``: set status to
 A verification method that does not work is worse than none, because the next
 reader trusts it.
 "@
-        Set-Content -Path (Join-Path $projNotes 'what-this-project-is.md') -Value $note -Encoding UTF8
+        # Set-Content -Encoding UTF8 writes a BOM under Windows PowerShell
+        # 5.1, and the linter then rejected the very note this just wrote.
+        # UTF8Encoding($false) does not.
+        $seed = Join-Path (Convert-Path $projNotes) 'what-this-project-is.md'
+        [System.IO.File]::WriteAllText($seed, $note, (New-Object System.Text.UTF8Encoding $false))
         Write-Ok "First project created: $FirstProject"
     }
 
@@ -184,7 +198,7 @@ reader trusts it.
 
     Push-Location $Base
     try {
-        & ([scriptblock]::Create("$py tools\notelint.py ."))
+        & $pyExe @pyPre 'tools\notelint.py' '.'
         $rc = $LASTEXITCODE
     } finally {
         Pop-Location
@@ -201,13 +215,13 @@ reader trusts it.
     Write-Host "  Your base:  $Base"
     Write-Host ""
     Write-Host "  Lint it, and regenerate INDEX.md / OPEN.md:"
-    Write-Host "    cd `"$Base`"; $py tools\notelint.py ." -ForegroundColor Cyan
+    Write-Host "    cd `"$Base`"; & `"$pyExe`" tools\notelint.py ." -ForegroundColor Cyan
     Write-Host ""
     Write-Host "  Just look, change nothing:"
-    Write-Host "    $py tools\notelint.py . --report-only" -ForegroundColor Cyan
+    Write-Host "    cd `"$Base`"; & `"$pyExe`" tools\notelint.py . --report-only" -ForegroundColor Cyan
     Write-Host ""
     Write-Host "  Working from more than one machine? See docs/SYNC.md in the repo:"
-    Write-Host "    $py tools\syncguard.py . --status" -ForegroundColor Cyan
+    Write-Host "    cd `"$Base`"; & `"$pyExe`" tools\syncguard.py . --status" -ForegroundColor Cyan
     Write-Host ""
     Write-Host "  Next: write your first real note. Copy templates\note.md into"
     Write-Host "  $FirstProject\notes\ and fill it in. Then run the linter again."
