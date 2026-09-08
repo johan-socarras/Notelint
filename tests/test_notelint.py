@@ -494,6 +494,13 @@ def zero_still_means_act_at_once(base):
     assert r.returncode == 0, "--in 0 is documented and must keep working"
 
 
+@case
+def a_space_in_the_first_segment_still_blocks_the_claim(base):
+    note(base, "Alpha", "one", evidence=["Q3 Report.pdf"])
+    (base / "Alpha" / "Q3 Report.pdf").write_text("x", encoding="utf-8")
+    assert any(c == "unclaimed" for c, _ in run(base)),         "documented limit: the guard that stops a backticked command from "         "claiming half the project also costs top-level names with spaces"
+
+
 def main():
     passed = failed = 0
     for fn in CASES:

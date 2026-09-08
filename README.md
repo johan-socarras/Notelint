@@ -196,6 +196,13 @@ evidence:
 A plain hyphen is **not** a delimiter, deliberately: too many real file names
 contain one, and `Q3 Report - final.pdf` has to stay citable as itself.
 
+One limit to know before it puzzles you: **the first segment of the path cannot
+contain a space.** That guard is what stops a shell command written in backticks
+from claiming half the project, and the price is that a file sitting loose at the
+top of a project with spaces in its name can never be claimed - it keeps showing
+up under `unclaimed` however you cite it. Move it into a folder, as above, or
+rename it.
+
 ## Flags
 
 | Flag | What it does |
@@ -379,7 +386,7 @@ enough to pass whole, and `tests/` will tell you if you broke something.
 python tests/test_notelint.py
 ```
 
-Forty-two tests, no framework. Every check plants its own fault and asserts it
+Forty-three tests, no framework. Every check plants its own fault and asserts it
 fires — a linter that never reports anything looks identical to a clean
 codebase, so each check has to be proven capable of failing.
 
