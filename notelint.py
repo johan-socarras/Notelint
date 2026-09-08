@@ -171,15 +171,32 @@ def parse(path, folder, V):
 
 
 def load(folders, V):
-    notes, clashes = {}, []
+    """Read every note. Returns (notes, clashes, ambiguous).
+
+    Two projects can each hold a `decisions.md`, and that has to keep
+    working: both notes are loaded and checked. What a clash costs is the
+    bare name as a link target - it no longer points at one note - so those
+    are keyed `Project/id` and listed in `ambiguous`.
+    """
+    seen = {}
     for c in folders:
         for p in sorted((c / "notes").glob("*.md")):
             n = parse(p, c, V)
-            if n["id"] in notes:
-                clashes.append((n["id"], notes[n["id"]]["folder"].name, c.name))
-                continue
-            notes[n["id"]] = n
-    return notes, clashes
+            seen.setdefault(n["id"], []).append(n)
+
+    notes, clashes, ambiguous = {}, [], set()
+    for i in sorted(seen):
+        group = seen[i]
+        if len(group) == 1:
+            notes[i] = group[0]
+            continue
+        ambiguous.add(i)
+        first = group[0]["folder"].name
+        for other in group[1:]:
+            clashes.append((i, first, other["folder"].name))
+        for n in group:
+            notes[n["folder"].name + "/" + i] = n
+    return notes, clashes, ambiguous
 
 
 def keywords(t):
@@ -188,10 +205,26 @@ def keywords(t):
     return {w for w in re.findall(r"[a-z0-9]+", fold(t)) if w not in stop and len(w) > 3}
 
 
+def cite_path(item):
+    """The path part of a citation, with any trailing comment removed.
+
+    One definition, used by both the evidence check and the claim check.
+    They used to cut on different delimiters - one on an em dash, the other
+    on a plain hyphen - so the same line could be live evidence and
+    unclaimed at the same time.
+
+    A plain hyphen is NOT a delimiter: it is far too common inside real
+    file names. To put a comment after a path use " — ", " (" or " §".
+    """
+    for sep in (" §", " (", " —"):
+        item = item.split(sep)[0]
+    return item.strip()
+
+
 def evidence_exists(e, folder, base):
     if e.startswith("http://") or e.startswith("https://"):
         return True
-    raw = e.split(" §")[0].split(" (")[0].split(" —")[0].strip().replace("\\", "/")
+    raw = cite_path(e).replace("\\", "/")
     p = Path(raw)
     if p.is_absolute():
         return p.exists()
@@ -226,7 +259,7 @@ def claimed_paths(project_notes, folder):
         if item.startswith("http://") or item.startswith("https://"):
             continue
         # Evidence lines may carry a trailing comment; keep the path part.
-        path = item.split(" §")[0].split(" (")[0].split(" -")[0]
+        path = cite_path(item)
         path = path.strip().strip("/\\").replace("\\", "/")
         if not path or path.startswith("-") or " " in path.split("/")[0]:
             continue
@@ -348,7 +381,7 @@ def oldest_block(notes, V, how_many=8):
     return out + [""]
 
 
-def check(notes, clashes, base, V):
+def check(notes, clashes, base, V, ambiguous=()):
     out = []
     CURRENT, SUPERSEDED, DROPPED, UNVERIFIED = V["statuses"]
     DEPENDS, SUPERSEDES, BLOCKS, RELATED = V["edges"]
@@ -376,7 +409,10 @@ def check(notes, clashes, base, V):
             targets |= set(n["links"][e])
         targets |= set(m.strip() for m in RE_WIKI.findall(strip_code(n["body"])))
         for d in sorted(targets):
-            if d not in ids:
+            if d in ambiguous:
+                out.append(("ambiguous link", i,
+                            "[[" + d + "]] names more than one note; rename one"))
+            elif d not in ids:
                 out.append(("broken link", i, "[[" + d + "]] does not exist"))
 
         # 2. evidence that no longer exists on disk
@@ -459,7 +495,8 @@ def check(notes, clashes, base, V):
     return out
 
 
-ORDER = ["duplicate id", "format", "wrong project", "broken link", "dead evidence",
+ORDER = ["duplicate id", "format", "wrong project", "broken link", "ambiguous link",
+         "dead evidence",
          "expired", "unreviewed", "zombie", "unblocked", "propagation",
          "unclaimed", "duplicate?"]
 
@@ -656,13 +693,13 @@ def main(argv=None):
             print("No such project. Available: " + ", ".join(c.name for c in everything))
             return 2
 
-    notes, clashes = load(folders, V)
+    notes, clashes, ambiguous = load(folders, V)
 
     if a.verify is not None:
         print_verifications(notes, folders, V, None if a.verify < 0 else a.verify)
         return 0
 
-    findings = check(notes, clashes, base, V)
+    findings = check(notes, clashes, base, V, ambiguous)
 
     print("")
     print("  notelint - " + str(len(notes)) + " notes in "

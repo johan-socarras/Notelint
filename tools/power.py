@@ -123,12 +123,25 @@ def countdown(seconds, action):
         return False
 
 
+def nonneg(v):
+    """Reject a negative countdown instead of shutting down at once.
+
+    Nobody types --in -5; a template or a generated command does, and the
+    whole promise here is a countdown you can still cancel.
+    """
+    n = int(v)
+    if n < 0:
+        raise argparse.ArgumentTypeError(
+            "seconds cannot be negative; use --in 0 to act immediately")
+    return n
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(
         prog="power",
         description="Shut down or suspend after a countdown you can cancel.")
     ap.add_argument("action", choices=["shutdown", "suspend", "cancel"])
-    ap.add_argument("--in", dest="delay", type=int, default=60, metavar="SEC",
+    ap.add_argument("--in", dest="delay", type=nonneg, default=60, metavar="SEC",
                     help="seconds before acting (default 60; 0 acts at once)")
     ap.add_argument("--close", default="", metavar="A,B",
                     help="comma-separated apps to close first")

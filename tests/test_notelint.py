@@ -56,8 +56,9 @@ def run(base, lang="en"):
     """Return the findings as a set of (category, subject) pairs."""
     V = notelint.VOCAB[lang]
     folders = notelint.projects(base)
-    notes, clashes = notelint.load(folders, V)
-    return {(c, i) for c, i, _ in notelint.check(notes, clashes, base, V)}
+    notes, clashes, ambiguous = notelint.load(folders, V)
+    return {(c, i) for c, i, _ in
+            notelint.check(notes, clashes, base, V, ambiguous)}
 
 
 def loaded(base, lang="en"):
@@ -293,7 +294,7 @@ def open_view(base, lang="en"):
     """Render OPEN.md for the first project and return it as text."""
     V = notelint.VOCAB[lang]
     folders = notelint.projects(base)
-    notes, _ = notelint.load(folders, V)
+    notes = notelint.load(folders, V)[0]
     group = [n for n in notes.values() if n["folder"] == folders[0]]
     return "\n".join(notelint.open_block(group, notes, folders[0], V))
 
@@ -393,7 +394,7 @@ def a_view_the_tool_did_not_write_is_left_alone(base):
                     encoding="utf-8")
     V = notelint.VOCAB["en"]
     folders = notelint.projects(base)
-    notes, _ = notelint.load(folders, V)
+    notes = notelint.load(folders, V)[0]
     notelint.write_views(notes, folders, base, V)
     assert "Hand written" in mine.read_text(encoding="utf-8"), \
         "the installer promises existing files are untouched; honour it"
@@ -406,10 +407,91 @@ def force_replaces_a_view_the_tool_did_not_write(base):
     mine.write_text("# My own index\n", encoding="utf-8")
     V = notelint.VOCAB["en"]
     folders = notelint.projects(base)
-    notes, _ = notelint.load(folders, V)
+    notes = notelint.load(folders, V)[0]
     notelint.write_views(notes, folders, base, V, force=True)
     assert "Do not edit by hand" in mine.read_text(encoding="utf-8"), \
         "--force is the documented way out"
+
+
+# --------------------------------------------------------------------------
+# Citations, and names that collide across projects.
+# --------------------------------------------------------------------------
+
+
+@case
+def a_comment_after_a_path_does_not_break_the_claim(base):
+    note(base, "Alpha", "one", evidence=["evidence/bench.md — the p95 numbers"])
+    (base / "Alpha" / "evidence").mkdir(parents=True, exist_ok=True)
+    (base / "Alpha" / "evidence" / "bench.md").write_text("x\n", encoding="utf-8")
+    found = run(base)
+    assert not any(c == "dead evidence" for c, _ in found), "the file is right there"
+    assert not any(c == "unclaimed" for c, _ in found), \
+        "the same line cannot be live evidence and unclaimed at once"
+
+
+@case
+def a_hyphen_in_a_file_name_is_part_of_the_name(base):
+    note(base, "Alpha", "one", evidence=["evidence/Q3 Report - final.pdf"])
+    (base / "Alpha" / "evidence").mkdir(parents=True, exist_ok=True)
+    (base / "Alpha" / "evidence" / "Q3 Report - final.pdf").write_text("x", encoding="utf-8")
+    found = run(base)
+    assert not any(c in ("dead evidence", "unclaimed") for c, _ in found), \
+        "a plain hyphen is not a comment delimiter; the file must stay citable"
+
+
+@case
+def both_notes_survive_a_name_collision(base):
+    note(base, "Alpha", "decisions", title="Decisions of Alpha")
+    note(base, "Beta", "decisions", title="Decisions of Beta")
+    notes = notelint.load(notelint.projects(base), notelint.VOCAB["en"])[0]
+    assert len(notes) == 2, "both must be loaded, not one discarded"
+    titles = {n["title"] for n in notes.values()}
+    assert titles == {"Decisions of Alpha", "Decisions of Beta"}
+
+
+@case
+def a_collision_is_still_reported(base):
+    note(base, "Alpha", "decisions", title="Decisions of Alpha")
+    note(base, "Beta", "decisions", title="Decisions of Beta")
+    assert any(c == "duplicate id" for c, _ in run(base))
+
+
+@case
+def a_link_to_a_collided_name_is_ambiguous_not_broken(base):
+    note(base, "Alpha", "decisions", title="Decisions of Alpha")
+    note(base, "Beta", "decisions", title="Decisions of Beta")
+    note(base, "Alpha", "other", title="Another claim entirely", related="decisions")
+    found = run(base)
+    assert ("ambiguous link", "other") in found, \
+        "the name points at neither note, and saying 'broken' would be wrong"
+    assert not any(c == "broken link" for c, _ in found)
+
+
+# --------------------------------------------------------------------------
+# tools/power.py. Not the linter, but it turns machines off, so the guard
+# that keeps a countdown cancellable is worth a test.
+# --------------------------------------------------------------------------
+
+
+@case
+def a_negative_countdown_is_refused(base):
+    import subprocess
+    root = Path(__file__).resolve().parent.parent
+    r = subprocess.run([sys.executable, str(root / "tools" / "power.py"),
+                        "shutdown", "--in", "-5", "--dry-run"],
+                       capture_output=True, text=True)
+    assert r.returncode != 0, "--in -5 must not reach the shutdown command"
+    assert "negative" in (r.stderr + r.stdout),         "and it has to say why, not just fail"
+
+
+@case
+def zero_still_means_act_at_once(base):
+    import subprocess
+    root = Path(__file__).resolve().parent.parent
+    r = subprocess.run([sys.executable, str(root / "tools" / "power.py"),
+                        "shutdown", "--in", "0", "--dry-run"],
+                       capture_output=True, text=True)
+    assert r.returncode == 0, "--in 0 is documented and must keep working"
 
 
 def main():

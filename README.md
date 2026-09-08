@@ -163,6 +163,7 @@ linter can act on:
 | **`propagation`** | A note was reviewed **after** something that declared a dependency on it |
 | **`unclaimed`** | A file or folder is in the project and **no note explains why it exists** (build junk like `__pycache__`, `node_modules` and `target` is skipped) |
 | `duplicate?` | Two current notes in one project have near-identical titles |
+| `ambiguous link` | `[[name]]` matches notes in two projects, so it points at neither |
 | `duplicate id`, `wrong project`, `format` | Structural mistakes |
 
 The last two in bold are the ones I haven't seen packaged elsewhere, and they
@@ -182,10 +183,18 @@ behaviour and it had a hole you could drive a project through: a new directory
 called `legal`, `src` or `tests` never showed up, because those words were
 already written somewhere in the notes for an unrelated reason.
 
-One limit worth knowing before it puzzles you: a path with a space in it — or
-with `" -"` anywhere in the name, like `Q3 Report - final.pdf` — cannot be
-claimed at all, so it keeps showing up under `unclaimed` however you cite it.
-Rename the file if you want it to settle.
+You can write a comment after the path, and it does not have to be a bare
+path on its own line. The comment starts at ` —` (em dash), ` (` or ` §`:
+
+```yaml
+evidence:
+  - evidence/bench-2026-08-20.md — the p95 numbers
+  - docs/HANDOFF.md §4
+  - reports/Q3 Report - final.pdf
+```
+
+A plain hyphen is **not** a delimiter, deliberately: too many real file names
+contain one, and `Q3 Report - final.pdf` has to stay citable as itself.
 
 ## Flags
 
@@ -243,8 +252,10 @@ silently vanishing from the view for lack of a root.
 
 ## Multi-project, multi-language
 
-Any directory containing a `notes/` folder is a project. There is nothing to
-register: create the folder and it's picked up. Links cross project boundaries,
+Any directory **directly under the base** containing a `notes/` folder is a
+project. There is nothing to register: create the folder and it's picked up.
+Nesting is not searched, and a handful of names (`tools`, `templates`, `docs`,
+`.git` and friends) never count as projects. Links cross project boundaries,
 so a lesson learned in one project can be a dependency of another.
 
 Field names come from a vocabulary, so notes can be kept in the language the
@@ -368,7 +379,7 @@ enough to pass whole, and `tests/` will tell you if you broke something.
 python tests/test_notelint.py
 ```
 
-Thirty-five tests, no framework. Every check plants its own fault and asserts it
+Forty-two tests, no framework. Every check plants its own fault and asserts it
 fires — a linter that never reports anything looks identical to a clean
 codebase, so each check has to be proven capable of failing.
 

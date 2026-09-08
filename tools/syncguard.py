@@ -243,18 +243,32 @@ def check(base: Path, cfg=None):
         return True, ("Up to date with " + str(last.get("machine"))
                       + " (" + str(count) + " notes).")
 
-    return False, ("OUT OF SYNC. " + str(last.get("machine")) + " left "
-                   + str(last.get("notes", "?")) + " notes at " + str(last.get("utc"))
-                   + "; this machine has " + str(count)
-                   + " and the hash differs. The sync has not landed yet.")
+    msg = ("OUT OF SYNC. " + str(last.get("machine")) + " left "
+           + str(last.get("notes", "?")) + " notes at " + str(last.get("utc"))
+           + "; this machine has " + str(count)
+           + " and the hash differs. The sync has not landed yet.")
+    there = last.get("notes")
+    if isinstance(there, int) and there != count:
+        # The one way this never resolves on its own: what one machine
+        # excludes from syncing has to be in "skip" too, or the hashes
+        # cannot match however long you wait. See docs/SYNC.md.
+        msg += ("\n  The note counts differ by "
+                + str(abs(there - count)) + ". If that gap does not close, it is not\n  the sync: check that whatever you exclude from syncing is also in\n  \"skip\" in .sync/config.json, or the hashes can never match.")
+    return False, msg
 
 
 def wait(base: Path, limit: int, cfg=None) -> int:
     cfg = {} if cfg is None else cfg
     start = time.monotonic()
     spun = False
+    first_digest, moved = None, False
     while True:
         ok, message = check(base, cfg)
+        here = hash_base(base, cfg)[0]
+        if first_digest is None:
+            first_digest = here
+        elif here != first_digest:
+            moved = True
         if ok:
             if spun:
                 print("")
@@ -268,6 +282,10 @@ def wait(base: Path, limit: int, cfg=None) -> int:
             print("")
             print("Check that your sync client is actually running, then either")
             print("wait longer or resolve it by hand before writing.")
+            if not moved:
+                print("")
+                print("Nothing here changed during the whole wait, so the sync is")
+                print("probably not mid-flight. See the note above about \"skip\".")
             return 1
         spun = True
         sys.stdout.write("\rWaiting for sync... "
