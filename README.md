@@ -178,7 +178,10 @@ are the ones that make the base behave like a system instead of a folder:
 Material is claimed by **citing its path** — in `evidence:`, or between backticks
 in the body — not by mentioning its name. Citing something deep also claims the
 directories above it, so quoting `evidence/shots/panel.md` does not leave
-`evidence` looking unclaimed. Matching on the bare name was the earlier
+`evidence` looking unclaimed. And citing a directory by name claims what it
+holds — but only a directory you actually named: a parent that is merely
+implied by a deeper citation does not claim its other children, or one file
+would claim every sibling. Matching on the bare name was the earlier
 behaviour and it had a hole you could drive a project through: a new directory
 called `legal`, `src` or `tests` never showed up, because those words were
 already written somewhere in the notes for an unrelated reason.
@@ -386,7 +389,7 @@ enough to pass whole, and `tests/` will tell you if you broke something.
 python tests/test_notelint.py
 ```
 
-Forty-three tests, no framework. Every check plants its own fault and asserts it
+Forty-seven tests, no framework. Every check plants its own fault and asserts it
 fires — a linter that never reports anything looks identical to a clean
 codebase, so each check has to be proven capable of failing.
 

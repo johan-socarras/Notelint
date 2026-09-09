@@ -245,6 +245,11 @@ def claimed_paths(project_notes, folder):
     Citing something deep also claims its parent directories, so that quoting
     `evidence/artifacts/x.md` does not leave `evidence` looking unclaimed.
 
+    Returns (claimed, cited): every claimed path including the implied
+    parents, and the paths cited in full. A directory cited in full claims
+    what it holds; an implied parent does not, or one file would claim
+    every sibling.
+
     Matching on the bare name instead is what made a new directory called
     `legal`, `src` or `tests` never show up: those words were already written
     somewhere in the notes for an unrelated reason.
@@ -254,7 +259,7 @@ def claimed_paths(project_notes, folder):
         raw.extend(n["evidence"])
         raw.extend(RE_BACKTICK.findall(n["body"]))
 
-    out = set()
+    out, cited = set(), set()
     for item in raw:
         if item.startswith("http://") or item.startswith("https://"):
             continue
@@ -273,7 +278,9 @@ def claimed_paths(project_notes, folder):
             continue
         for i in range(1, len(parts) + 1):
             out.add("/".join(parts[:i]).lower())
-    return out
+        if parts:
+            cited.add("/".join(parts).lower())
+    return out, cited
 
 
 RE_SECTION = re.compile(r"^##\s+(.+?)\s*$", re.M)
@@ -443,9 +450,11 @@ def check(notes, clashes, base, V, ambiguous=()):
                 if o and o["status"] in (SUPERSEDED, DROPPED):
                     out.append(("zombie", i, e + ": " + d + " points at a " + o["status"] + " note"))
 
-    # 5. stale blocker: A blocks B, but A is closed - B is free now
+    # 5. stale blocker: A blocks B, but A is closed - B is free now.
+    # Closed means superseded or dropped. An unverified blocker still blocks:
+    # checking it is the first job, not a reason to start what it held back.
     for i, n in sorted(notes.items()):
-        if n["status"] == CURRENT:
+        if n["status"] not in (SUPERSEDED, DROPPED):
             continue
         for d in n["links"][BLOCKS]:
             if d in notes and notes[d]["status"] == CURRENT:
@@ -467,7 +476,7 @@ def check(notes, clashes, base, V, ambiguous=()):
 
     # 7. unclaimed material: something is in the project and no note claims it
     for c in {n["folder"] for n in notes.values()}:
-        claimed = claimed_paths([n for n in notes.values() if n["folder"] == c], c)
+        claimed, cited = claimed_paths([n for n in notes.values() if n["folder"] == c], c)
         for entry in sorted(c.iterdir()):
             if (entry.name in ("notes", V["index"], V["open"])
                     or entry.name in GENERATED or entry.name.startswith(".")):
@@ -477,8 +486,10 @@ def check(notes, clashes, base, V, ambiguous=()):
                 if cand.name.startswith("."):
                     continue
                 rel = str(cand.relative_to(c)).replace("\\", "/")
-                if rel.lower() not in claimed:
-                    out.append(("unclaimed", c.name, rel))
+                low = rel.lower()
+                if low in claimed or any(low.startswith(d + "/") for d in cited):
+                    continue
+                out.append(("unclaimed", c.name, rel))
 
     # 8. probable duplicates, within one project
     live = [(i, keywords(n["title"]), n["folder"].name)
@@ -529,10 +540,11 @@ def link_to(n, folder_ref):
 
 def blocking_graph(everything, V):
     """children: blocker -> blocked. roots: where each chain starts."""
-    CURRENT, BLOCKS = V["statuses"][0], V["edges"][2]
+    CURRENT, UNVERIFIED, BLOCKS = V["statuses"][0], V["statuses"][3], V["edges"][2]
     children, blocked = {}, set()
     for i, n in everything.items():
-        if n["status"] != CURRENT:
+        # An unverified blocker has not closed; it keeps holding the chain.
+        if n["status"] not in (CURRENT, UNVERIFIED):
             continue
         targets = sorted(d for d in n["links"][BLOCKS] if d in everything)
         if targets:
@@ -693,13 +705,22 @@ def main(argv=None):
             print("No such project. Available: " + ", ".join(c.name for c in everything))
             return 2
 
-    notes, clashes, ambiguous = load(folders, V)
+    # Every project is loaded even under --project: links cross project
+    # boundaries, so a dependency living in an unselected project is not a
+    # broken link. The selection narrows the report, not the graph.
+    everything_notes, clashes, ambiguous = load(everything, V)
 
     if a.verify is not None:
-        print_verifications(notes, folders, V, None if a.verify < 0 else a.verify)
+        print_verifications(everything_notes, folders, V, None if a.verify < 0 else a.verify)
         return 0
 
-    findings = check(notes, clashes, base, V, ambiguous)
+    findings = check(everything_notes, clashes, base, V, ambiguous)
+    notes = everything_notes
+    if folders is not everything:
+        names = {c.name for c in folders}
+        notes = {i: n for i, n in everything_notes.items() if n["folder"].name in names}
+        mine = set(notes) | names | {i for i, p, q in clashes if p in names or q in names}
+        findings = [f for f in findings if f[1] in mine]
 
     print("")
     print("  notelint - " + str(len(notes)) + " notes in "
@@ -732,8 +753,7 @@ def main(argv=None):
         print("")
 
     if not a.report_only:
-        all_notes = load(everything, V)[0]
-        write_views(all_notes, everything, base, V, a.force)
+        write_views(everything_notes, everything, base, V, a.force)
         print("  " + V["index"] + " and " + V["open"] + " regenerated.")
         print("")
 

@@ -501,6 +501,58 @@ def a_space_in_the_first_segment_still_blocks_the_claim(base):
     assert any(c == "unclaimed" for c, _ in run(base)),         "documented limit: the guard that stops a backticked command from "         "claiming half the project also costs top-level names with spaces"
 
 
+# --------------------------------------------------------------------------
+# Second pass, 2026-09-08: what --project, an unverified blocker and a
+# cited directory actually mean.
+# --------------------------------------------------------------------------
+
+
+@case
+def project_filter_keeps_cross_project_links_whole(base):
+    import io, contextlib
+    note(base, "Alpha", "lesson", title="A lesson learned in Alpha")
+    note(base, "Beta", "uses-lesson", title="Beta rests on the Alpha lesson",
+         depends="lesson")
+    with contextlib.redirect_stdout(io.StringIO()) as out:
+        rc = notelint.main([str(base), "--project", "Beta", "--report-only"])
+    assert rc == 0 and "BROKEN LINK" not in out.getvalue(), \
+        "links cross project boundaries; narrowing the report must not break them"
+
+
+@case
+def an_unverified_blocker_still_blocks(base):
+    note(base, "Alpha", "gate", title="Decide the auth model first",
+         type="todo", status="unverified", blocks="work")
+    note(base, "Alpha", "work", title="Expose the port", type="todo")
+    assert not any(c == "unblocked" for c, _ in run(base)), \
+        "unverified is not closed: the protocol says it keeps blocking"
+    text = open_view(base)
+    assert "Expose the port" not in text.split("## Work chains")[0], \
+        "and what it blocks must not look ready to do"
+    assert "## Work chains (1)" in text
+
+
+@case
+def citing_a_directory_claims_what_it_holds(base):
+    shots = base / "Alpha" / "screenshots"
+    shots.mkdir(parents=True, exist_ok=True)
+    (shots / "panel.png").write_bytes(b"x")
+    note(base, "Alpha", "one", body="The captures live in `screenshots`.")
+    assert not any(c == "unclaimed" for c, _ in run(base)), \
+        "a directory cited by name claims its files"
+
+
+@case
+def a_cited_file_does_not_claim_its_siblings(base):
+    ev = base / "Alpha" / "evidence"
+    (ev / "shots").mkdir(parents=True, exist_ok=True)
+    (ev / "bench.md").write_text("x", encoding="utf-8")
+    (ev / "shots" / "panel.png").write_bytes(b"x")
+    note(base, "Alpha", "one", evidence=["evidence/bench.md"])
+    assert ("unclaimed", "Alpha") in run(base), \
+        "the parent is implied, not cited: it must not claim the other children"
+
+
 def main():
     passed = failed = 0
     for fn in CASES:
