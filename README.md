@@ -59,6 +59,12 @@ The base is **self-contained**: the tools are installed inside it, so if you
 later move it into a synced folder, they travel with it. Re-running the
 installer is safe — it adds what is missing and leaves your files alone.
 
+That includes the tools, so re-running does **not** upgrade them. To bring an
+existing base up to date, delete `tools/notelint.py`, `tools/syncguard.py` and
+`tools/power.py` (and `~/.claude/skills/notelint`, if you want the newer skill)
+and run the installer again. Notes, `PROTOCOL.md` and the templates are never
+replaced.
+
 Piping a script from the internet into a shell is a thing you should only do
 after reading the script. `install.sh` and `install.ps1` are in this repo for
 exactly that reason.
@@ -166,7 +172,7 @@ linter can act on:
 | `ambiguous link` | `[[name]]` matches notes in two projects, so it points at neither |
 | `duplicate id`, `wrong project`, `format` | Structural mistakes |
 
-The last two in bold are the ones I haven't seen packaged elsewhere, and they
+The two in bold are the ones I haven't seen packaged elsewhere, and they
 are the ones that make the base behave like a system instead of a folder:
 
 - **`propagation`** is the nerve. You correct one note, and the linter tells you
@@ -354,7 +360,9 @@ python tools/power.py shutdown --dry-run        # say what it would do
 ```
 
 The countdown runs inside the process, which is what makes cancelling always the
-same gesture — Ctrl+C — regardless of platform.
+same gesture — Ctrl+C — regardless of platform. One Windows detail: `suspend`
+hibernates instead of sleeping when hibernation is enabled, which it usually is;
+`powercfg -h off` gives you true sleep.
 
 ## Make it yours
 
@@ -389,7 +397,7 @@ enough to pass whole, and `tests/` will tell you if you broke something.
 python tests/test_notelint.py
 ```
 
-Forty-seven tests, no framework. Every check plants its own fault and asserts it
+Forty-nine tests, no framework. Every check plants its own fault and asserts it
 fires — a linter that never reports anything looks identical to a clean
 codebase, so each check has to be proven capable of failing.
 

@@ -9,6 +9,11 @@ on:
 jobs:
   test:
     runs-on: ${{ matrix.os }}
+    env:
+      # The installers download the repo. Point them at the commit under
+      # test, not at whatever main holds today; a fork's PR names its own repo.
+      NOTELINT_REPO: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+      NOTELINT_BRANCH: ${{ github.head_ref || github.ref_name }}
     strategy:
       fail-fast: false
       matrix:
@@ -53,19 +58,36 @@ jobs:
           # UTF8 under 5.1 writes one, and the linter used to reject the very
           # note the installer had just written.
           $base = "$env:RUNNER_TEMP\kb with space"
-          powershell.exe -NoProfile -ExecutionPolicy Restricted -Command "& ([scriptblock]::Create((Get-Content -Raw install.ps1))) -Base '$base'"
+          $cmd = "& ([scriptblock]::Create((Get-Content -Raw install.ps1))) -Base '$base' -Repo '$env:NOTELINT_REPO' -Branch '$env:NOTELINT_BRANCH'"
+          powershell.exe -NoProfile -ExecutionPolicy Restricted -Command $cmd
           if ($LASTEXITCODE -ne 0) { throw "installer failed under ExecutionPolicy Restricted" }
+          # It installed this commit, not whatever main holds today.
+          if ((Get-FileHash notelint.py).Hash -ne (Get-FileHash "$base\tools\notelint.py").Hash) {
+            throw "the installed notelint.py is not the one under test"
+          }
           $seed = "$base\Example\notes\what-this-project-is.md"
           $b = [System.IO.File]::ReadAllBytes($seed)
           if ($b[0] -eq 0xEF -and $b[1] -eq 0xBB -and $b[2] -eq 0xBF) {
             throw "the seed note was written with a BOM"
           }
+          # Re-running is promised to be safe: nothing of the user's is touched.
+          Set-Content -Path "$base\mine.md" -Value "hand written"
+          powershell.exe -NoProfile -ExecutionPolicy Restricted -Command $cmd
+          if ($LASTEXITCODE -ne 0) { throw "the second run failed" }
+          if ((Get-Content "$base\mine.md") -ne "hand written") { throw "the second run touched a user file" }
 
-      - name: The installer runs end to end
+      - name: The installer runs end to end, twice
         if: runner.os != 'Windows'
         shell: bash
         run: |
-          sh install.sh "$RUNNER_TEMP/kb"
-          for p in tools/notelint.py PROTOCOL.md templates/note.md tools/syncguard.py; do
-            test -e "$RUNNER_TEMP/kb/$p" || { echo "MISSING $p"; exit 1; }
+          KB="$RUNNER_TEMP/kb with space"
+          sh install.sh "$KB"
+          for p in tools/notelint.py PROTOCOL.md SYNC.md templates/note.md tools/syncguard.py; do
+            test -e "$KB/$p" || { echo "MISSING $p"; exit 1; }
           done
+          # It installed this commit, not whatever main holds today.
+          cmp notelint.py "$KB/tools/notelint.py"
+          # Re-running is promised to be safe: nothing of the user's is touched.
+          echo "hand written" > "$KB/mine.md"
+          sh install.sh "$KB"
+          test "$(cat "$KB/mine.md")" = "hand written"

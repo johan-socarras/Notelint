@@ -16,7 +16,8 @@ there.** Unexplained material is material nobody dares delete in six months.
 
 1. **Run the linter before writing anything.**
    ```bash
-   python notelint.py
+   python tools/notelint.py .    # a base made by the installer
+   python notelint.py <base>     # a clone of the repository
    ```
    Start from what it reports, not from what you remember.
 
