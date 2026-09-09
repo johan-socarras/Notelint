@@ -8,7 +8,7 @@ computer". The agent runs one command and walks away; you keep a window in which
 nothing has happened yet and Ctrl+C still takes it back.
 
     python tools/power.py shutdown              shut down in 60s
-    python tools/power.py suspend --in 30       sleep in 30s
+    python tools/power.py suspend --in 30       sleep in 30s (see the Windows note)
     python tools/power.py shutdown --in 0       immediately, no countdown
     python tools/power.py shutdown --dry-run    say what it would do, do nothing
     python tools/power.py cancel                cancel a shutdown already queued
@@ -21,6 +21,10 @@ The countdown runs inside this process, which is what makes it behave the same
 on Windows, Linux and macOS: cancelling is always Ctrl+C or closing the window.
 `cancel` is only for a shutdown queued through the OS scheduler by something
 else.
+
+Windows note: `suspend` hibernates instead of sleeping when hibernation is
+enabled, which it usually is (fast startup needs it). `powercfg -h off` gives
+you true sleep.
 
 No dependencies. Python 3.8+.
 """
@@ -98,6 +102,8 @@ def cancel_queued(dry):
     else:
         print("  Nothing to cancel on this platform.")
         return 0
+    if dry:
+        return 0
     if code == 0:
         print("  Cancelled.")
     else:
@@ -123,8 +129,12 @@ def countdown(seconds, action):
         return False
 
 
-def nonneg(v):
+def seconds(v):
     """Reject a negative countdown instead of shutting down at once.
+
+    Named `seconds` because argparse puts the name in its error message:
+    "invalid seconds value" says what was expected, "invalid nonneg value"
+    did not.
 
     Nobody types --in -5; a template or a generated command does, and the
     whole promise here is a countdown you can still cancel.
@@ -141,7 +151,7 @@ def main(argv=None):
         prog="power",
         description="Shut down or suspend after a countdown you can cancel.")
     ap.add_argument("action", choices=["shutdown", "suspend", "cancel"])
-    ap.add_argument("--in", dest="delay", type=nonneg, default=60, metavar="SEC",
+    ap.add_argument("--in", dest="delay", type=seconds, default=60, metavar="SEC",
                     help="seconds before acting (default 60; 0 acts at once)")
     ap.add_argument("--close", default="", metavar="A,B",
                     help="comma-separated apps to close first")

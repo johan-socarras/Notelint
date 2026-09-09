@@ -82,11 +82,14 @@ SKIP = {
 
 # Sync clients name their conflict files in predictable ways. A conflict copy is
 # not part of the base: counting it would make the hash differ forever.
+#
+# Whole phrases only. A bare word like "conflicto" used to be here, and it
+# silently dropped any real note whose name contained it - a guard that
+# says "up to date" while a note is missing is worse than one that blocks.
 CONFLICT_MARKERS = (
     "conflicted copy",        # Dropbox
-    "conflicto",              # OneDrive, Spanish
     "copia en conflicto",     # OneDrive, Spanish
-    "sync-conflict",          # Syncthing
+    "sync-conflict-",         # Syncthing
     "(case conflict)",
 )
 
@@ -130,7 +133,12 @@ def is_conflict_copy(name: str) -> bool:
 def notes_in(base: Path, skip: set):
     """Every markdown file that makes up the base, in a stable order."""
     found = []
-    for path in base.rglob("*.md"):
+    # rglob("*.md") is case-insensitive on Windows and not on POSIX, so a
+    # NOTE.MD would make the two machines count different sets. Match the
+    # suffix by hand so every platform counts the same files.
+    for path in base.rglob("*"):
+        if path.suffix.lower() != ".md" or not path.is_file():
+            continue
         rel = path.relative_to(base)
         if is_skipped(rel, skip) or is_conflict_copy(path.name):
             continue
@@ -285,13 +293,16 @@ def wait(base: Path, limit: int, cfg=None) -> int:
             if not moved:
                 print("")
                 print("Nothing here changed during the whole wait, so the sync is")
-                print("probably not mid-flight. See the note above about \"skip\".")
+                print("probably not mid-flight. If the other machine really finished,")
+                print("check that whatever you exclude from syncing is also in")
+                print("\"skip\" in .sync/config.json, or the hashes can never match.")
             return 1
         spun = True
         sys.stdout.write("\rWaiting for sync... "
                          + str(int(limit - elapsed)) + "s left   ")
         sys.stdout.flush()
-        time.sleep(5)
+        # Never sleep past the limit: --wait 6 must not take 10.
+        time.sleep(min(5, max(0, limit - elapsed)))
 
 
 def status(base: Path, cfg=None):
@@ -313,11 +324,15 @@ def status(base: Path, cfg=None):
         print("No stamps yet. Run --stamp when you finish working.")
         return
     print("Stamps (most recent first):")
+    stale_own = False
     for s in stamps:
         name = str(s.get("machine"))
         if s.get("hash") == digest:
             mark = "="
-        elif only is not None and name.lower() not in only and name != machine_name():
+        elif name == machine_name():
+            # Our own stamp cannot hold something we lack: it is just old.
+            mark, stale_own = "~", True
+        elif only is not None and name.lower() not in only:
             mark = "-"
         else:
             mark = "!"
@@ -327,8 +342,17 @@ def status(base: Path, cfg=None):
     print("")
     print("  [=] matches what is on disk here")
     print("  [!] that machine has something this one has not received yet")
+    if stale_own:
+        print("  [~] this machine's own stamp is older than the disk - run --stamp when done")
     if only is not None:
         print("  [-] not in 'machines', so it never blocks you")
+
+
+def seconds(v):
+    n = int(v)
+    if n < 0:
+        raise argparse.ArgumentTypeError("seconds cannot be negative")
+    return n
 
 
 def main(argv=None):
@@ -340,7 +364,7 @@ def main(argv=None):
     g.add_argument("--check", action="store_true", help="exit 0 if up to date")
     g.add_argument("--stamp", action="store_true", help="record this machine's state")
     g.add_argument("--status", action="store_true", help="show all stamps")
-    g.add_argument("--wait", type=int, nargs="?", const=180, metavar="SEC",
+    g.add_argument("--wait", type=seconds, nargs="?", const=180, metavar="SEC",
                    help="block until the sync lands (default 180s)")
     ap.add_argument("--quiet", action="store_true")
     a = ap.parse_args(argv)

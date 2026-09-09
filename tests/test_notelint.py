@@ -553,6 +553,47 @@ def a_cited_file_does_not_claim_its_siblings(base):
         "the parent is implied, not cited: it must not claim the other children"
 
 
+# --------------------------------------------------------------------------
+# tools/syncguard.py. Optional, but it decides whether you may write, so its
+# two answers - up to date, out of sync - and what it counts get a test each.
+# --------------------------------------------------------------------------
+
+
+@case
+def syncguard_says_up_to_date_and_then_out_of_sync(base):
+    import subprocess, json
+    root = Path(__file__).resolve().parent.parent
+    note(base, "Alpha", "one")
+    sg = [sys.executable, str(root / "tools" / "syncguard.py"), str(base)]
+    r = subprocess.run(sg + ["--stamp", "--quiet"], capture_output=True, text=True)
+    assert r.returncode == 0, r.stdout + r.stderr
+    r = subprocess.run(sg + ["--check"], capture_output=True, text=True)
+    assert r.returncode == 0 and "OK" in r.stdout, r.stdout + r.stderr
+    # Another machine stamped a different hash later: this copy is stale.
+    mine = next((base / ".sync").glob("*.json"))
+    other = json.loads(mine.read_text(encoding="utf-8"))
+    other.update(machine="elsewhere", hash="0" * 64, utc="2099-01-01T00:00:00Z")
+    (base / ".sync" / "elsewhere.json").write_text(json.dumps(other), encoding="utf-8")
+    r = subprocess.run(sg + ["--check"], capture_output=True, text=True)
+    assert r.returncode == 1 and "OUT OF SYNC" in r.stdout, r.stdout + r.stderr
+
+
+@case
+def syncguard_counts_a_note_named_after_a_conflict_but_not_a_conflict_copy(base):
+    root = Path(__file__).resolve().parent.parent
+    sys.path.insert(0, str(root / "tools"))
+    import syncguard
+    note(base, "Alpha", "conflicto-laboral", title="A real note with conflict in its name")
+    d = base / "Alpha" / "notes"
+    (d / "two (conflicted copy 2026-09-08).md").write_text("x", encoding="utf-8")
+    (d / "UPPER.MD").write_text("x", encoding="utf-8")
+    names = {r.name for r in syncguard.notes_in(base, syncguard.SKIP)}
+    assert "conflicto-laboral.md" in names, \
+        "a bare word is not a conflict marker; the note used to vanish from the hash"
+    assert not any("conflicted copy" in n for n in names), "a real conflict copy stays out"
+    assert "UPPER.MD" in names, "every platform must count the same files"
+
+
 def main():
     passed = failed = 0
     for fn in CASES:
