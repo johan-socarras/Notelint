@@ -16,9 +16,9 @@
 
 set -eu
 
-REPO="johan-socarras/notelint"
-BRANCH="main"
-BASE="${1:-$HOME/knowledge-base}"
+# CI points these at the commit under test; nobody else needs them.
+REPO="${NOTELINT_REPO:-johan-socarras/notelint}"
+BRANCH="${NOTELINT_BRANCH:-main}"
 
 RED=''; GREEN=''; YELLOW=''; BLUE=''; DIM=''; OFF=''
 if [ -t 1 ]; then
@@ -33,6 +33,12 @@ warn() { printf '%s WARN %s%s\n' "$YELLOW" "$OFF" "$*"; }
 die()  { printf '%s FAIL %s%s\n' "$RED" "$OFF" "$*" >&2; exit 1; }
 step() { printf '\n%s=== %s ===%s\n' "$BLUE" "$*" "$OFF"; }
 dim()  { printf '%s      %s%s\n' "$DIM" "$*" "$OFF"; }
+
+# No HOME (cron, a bare container, env -i) and no path: nowhere to put it.
+if [ -z "${1:-}" ] && [ -z "${HOME:-}" ]; then
+    die "HOME is not set; say where the base goes: sh install.sh /path/to/base"
+fi
+BASE="${1:-$HOME/knowledge-base}"
 
 say ""
 say "${BLUE}  notelint - a linter for a knowledge base that does not rot${OFF}"
@@ -85,6 +91,7 @@ ok "Downloaded"
 # ----------------------------------------------------------------- the base
 step "Creating the knowledge base"
 
+[ -e "$BASE" ] && [ ! -d "$BASE" ] && die "$BASE exists and is not a directory."
 if [ -e "$BASE" ] && [ -n "$(ls -A "$BASE" 2>/dev/null)" ]; then
     warn "$BASE already exists and is not empty."
     dim "Existing files are left untouched; only missing pieces are added."
@@ -93,6 +100,8 @@ else
     ok "Created $BASE"
 fi
 
+# Absolute from here on, so the commands printed at the end work from anywhere.
+BASE=$(cd "$BASE" && pwd)
 mkdir -p "$BASE/tools" "$BASE/templates"
 
 for f in notelint.py tools/syncguard.py tools/power.py; do
@@ -117,6 +126,8 @@ if [ -f "$BASE/PROTOCOL.md" ]; then
 else
     cp "$SRC/docs/PROTOCOL.md" "$BASE/PROTOCOL.md"
 fi
+# PROTOCOL.md links to SYNC.md as a neighbour; keep that true here too.
+[ -f "$BASE/SYNC.md" ] || cp "$SRC/docs/SYNC.md" "$BASE/SYNC.md"
 ok "Protocol and note template in place"
 
 # ------------------------------------------------------------- first project
@@ -164,8 +175,10 @@ fi
 step "Claude Code skill"
 
 SKILL_SRC="$SRC/skills/notelint"
-SKILL_DST="$HOME/.claude/skills/notelint"
-if [ -d "$SKILL_SRC" ]; then
+SKILL_DST="${HOME:-}/.claude/skills/notelint"
+if [ -z "${HOME:-}" ]; then
+    warn "HOME is not set; skill not installed. Copy skills/notelint to ~/.claude/skills/ yourself."
+elif [ -d "$SKILL_SRC" ]; then
     if [ -d "$SKILL_DST" ]; then
         dim "skill already installed at $SKILL_DST"
     else
@@ -203,7 +216,7 @@ say ""
 say "  Just look, change nothing:"
 say "    ${BLUE}cd \"$BASE\" && \"$PY\" tools/notelint.py . --report-only${OFF}"
 say ""
-say "  Working from more than one machine? See docs/SYNC.md in the repo:"
+say "  Working from more than one machine? See SYNC.md in the base:"
 say "    ${BLUE}cd \"$BASE\" && \"$PY\" tools/syncguard.py . --status${OFF}"
 say ""
 say "  Next: write your first real note. Copy templates/note.md into"

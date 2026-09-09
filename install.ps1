@@ -130,6 +130,9 @@ try {
     $proto = Join-Path $Base 'PROTOCOL.md'
     if (Test-Path $proto) { Write-Dim "kept existing PROTOCOL.md" }
     else { Copy-Item (Join-Path $src.FullName 'docs\PROTOCOL.md') $proto }
+    # PROTOCOL.md links to SYNC.md as a neighbour; keep that true here too.
+    $sync = Join-Path $Base 'SYNC.md'
+    if (-not (Test-Path $sync)) { Copy-Item (Join-Path $src.FullName 'docs\SYNC.md') $sync }
     Write-Ok "Protocol and note template in place"
 
     # ----------------------------------------------------------- first project
@@ -224,7 +227,7 @@ reader trusts it.
     Write-Host "  Just look, change nothing:"
     Write-Host "    cd `"$Base`"; & `"$pyExe`" tools\notelint.py . --report-only" -ForegroundColor Cyan
     Write-Host ""
-    Write-Host "  Working from more than one machine? See docs/SYNC.md in the repo:"
+    Write-Host "  Working from more than one machine? See SYNC.md in the base:"
     Write-Host "    cd `"$Base`"; & `"$pyExe`" tools\syncguard.py . --status" -ForegroundColor Cyan
     Write-Host ""
     Write-Host "  Next: write your first real note. Copy templates\note.md into"
