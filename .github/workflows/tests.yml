@@ -41,16 +41,21 @@ jobs:
           # ships three on purpose. 0 would mean the checks stopped firing.
           test $rc -eq 1 || { echo "expected exit 1, got $rc"; exit 1; }
 
-      - name: The installer's own seed note passes the linter
+      - name: The installer runs the way a stock Windows runs it
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          # Regression guard for the BOM: Set-Content -Encoding UTF8 under
-          # Windows PowerShell 5.1 writes one, and the linter used to reject
-          # the very note the installer had just written.
-          powershell.exe -NoProfile -ExecutionPolicy Bypass -File install.ps1 -Base "$env:RUNNER_TEMP\kb"
-          if ($LASTEXITCODE -ne 0) { throw "installer failed" }
-          $seed = "$env:RUNNER_TEMP\kb\Example\notes\what-this-project-is.md"
+          # Windows PowerShell 5.1 under ExecutionPolicy Restricted - what a
+          # fresh Windows ships with - and through iex, the way the README
+          # says. Expand-Archive used to die right here: its module is a
+          # script, and Restricted refuses to load it. Also a base path with
+          # a space, and a regression guard for the BOM: Set-Content -Encoding
+          # UTF8 under 5.1 writes one, and the linter used to reject the very
+          # note the installer had just written.
+          $base = "$env:RUNNER_TEMP\kb with space"
+          powershell.exe -NoProfile -ExecutionPolicy Restricted -Command "& ([scriptblock]::Create((Get-Content -Raw install.ps1))) -Base '$base'"
+          if ($LASTEXITCODE -ne 0) { throw "installer failed under ExecutionPolicy Restricted" }
+          $seed = "$base\Example\notes\what-this-project-is.md"
           $b = [System.IO.File]::ReadAllBytes($seed)
           if ($b[0] -eq 0xEF -and $b[1] -eq 0xBB -and $b[2] -eq 0xBF) {
             throw "the seed note was written with a BOM"

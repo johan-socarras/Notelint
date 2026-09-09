@@ -78,7 +78,11 @@ try {
     $ProgressPreference = 'SilentlyContinue'
     Invoke-WebRequest -Uri $url -OutFile $zip -UseBasicParsing
     $ProgressPreference = $old
-    Expand-Archive -Path $zip -DestinationPath $tmp -Force
+    # Not Expand-Archive: that lives in a script module, and a stock Windows
+    # runs with ExecutionPolicy Restricted, which refuses to load it. The
+    # .NET class needs no script and works under any policy.
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    [System.IO.Compression.ZipFile]::ExtractToDirectory($zip, $tmp)
 
     # Take whatever single directory the zip unpacked into. Matching on the name
     # would break the day the repository is renamed - GitHub names the directory
