@@ -8,7 +8,7 @@ Install somewhere other than ~\knowledge-base:
     & ([scriptblock]::Create((irm https://raw.githubusercontent.com/johan-socarras/notelint/main/install.ps1))) -Base C:\my-brain
 
 It creates a knowledge base that is self-contained: the tools live inside it, so
-if you later put the base in a synced folder, the tools travel with it.
+moving the folder moves everything.
 
 Nothing is uploaded anywhere. Read this file before running it - that is the
 whole point of piping to iex only after you have looked.
@@ -110,7 +110,6 @@ try {
 
     $tools = @{
         'notelint.py'       = 'notelint.py'
-        'tools\syncguard.py' = 'syncguard.py'
         'tools\power.py'     = 'power.py'
     }
     foreach ($rel in $tools.Keys) {
@@ -130,9 +129,6 @@ try {
     $proto = Join-Path $Base 'PROTOCOL.md'
     if (Test-Path $proto) { Write-Dim "kept existing PROTOCOL.md" }
     else { Copy-Item (Join-Path $src.FullName 'docs\PROTOCOL.md') $proto }
-    # PROTOCOL.md links to SYNC.md as a neighbour; keep that true here too.
-    $sync = Join-Path $Base 'SYNC.md'
-    if (-not (Test-Path $sync)) { Copy-Item (Join-Path $src.FullName 'docs\SYNC.md') $sync }
     Write-Ok "Protocol and note template in place"
 
     # ----------------------------------------------------------- first project
@@ -226,9 +222,6 @@ reader trusts it.
     Write-Host ""
     Write-Host "  Just look, change nothing:"
     Write-Host "    cd `"$Base`"; & `"$pyExe`" tools\notelint.py . --report-only" -ForegroundColor Cyan
-    Write-Host ""
-    Write-Host "  Working from more than one machine? See SYNC.md in the base:"
-    Write-Host "    cd `"$Base`"; & `"$pyExe`" tools\syncguard.py . --status" -ForegroundColor Cyan
     Write-Host ""
     Write-Host "  Next: write your first real note. Copy templates\note.md into"
     Write-Host "  $FirstProject\notes\ and fill it in. Then run the linter again."

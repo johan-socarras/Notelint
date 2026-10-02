@@ -82,7 +82,7 @@ jobs:
         run: |
           KB="$RUNNER_TEMP/kb with space"
           sh install.sh "$KB"
-          for p in tools/notelint.py PROTOCOL.md SYNC.md templates/note.md tools/syncguard.py; do
+          for p in tools/notelint.py PROTOCOL.md templates/note.md tools/power.py; do
             test -e "$KB/$p" || { echo "MISSING $p"; exit 1; }
           done
           # It installed this commit, not whatever main holds today.

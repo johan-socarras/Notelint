@@ -8,7 +8,7 @@
 #   curl -fsSL .../install.sh | sh -s -- ~/my-brain
 #
 # It creates a knowledge base that is self-contained: the tools live inside it,
-# so if you later put the base in a synced folder, the tools travel with it.
+# so moving the folder moves everything.
 #
 # Nothing is downloaded outside your machine and nothing is uploaded anywhere.
 # Read this file before running it - that is the whole point of piping to sh
@@ -104,7 +104,7 @@ fi
 BASE=$(cd "$BASE" && pwd)
 mkdir -p "$BASE/tools" "$BASE/templates"
 
-for f in notelint.py tools/syncguard.py tools/power.py; do
+for f in notelint.py tools/power.py; do
     name=$(basename "$f")
     if [ -f "$BASE/tools/$name" ]; then
         dim "kept existing tools/$name"
@@ -126,8 +126,6 @@ if [ -f "$BASE/PROTOCOL.md" ]; then
 else
     cp "$SRC/docs/PROTOCOL.md" "$BASE/PROTOCOL.md"
 fi
-# PROTOCOL.md links to SYNC.md as a neighbour; keep that true here too.
-[ -f "$BASE/SYNC.md" ] || cp "$SRC/docs/SYNC.md" "$BASE/SYNC.md"
 ok "Protocol and note template in place"
 
 # ------------------------------------------------------------- first project
@@ -215,9 +213,6 @@ say "    ${BLUE}cd \"$BASE\" && \"$PY\" tools/notelint.py .${OFF}"
 say ""
 say "  Just look, change nothing:"
 say "    ${BLUE}cd \"$BASE\" && \"$PY\" tools/notelint.py . --report-only${OFF}"
-say ""
-say "  Working from more than one machine? See SYNC.md in the base:"
-say "    ${BLUE}cd \"$BASE\" && \"$PY\" tools/syncguard.py . --status${OFF}"
 say ""
 say "  Next: write your first real note. Copy templates/note.md into"
 say "  $FIRST/notes/ and fill it in. Then run the linter again."

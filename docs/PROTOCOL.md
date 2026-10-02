@@ -101,18 +101,14 @@ there.** Unexplained material is material nobody dares delete in six months.
 
 ## Someone else may be editing right now
 
-Another session — another person, another agent, or you on another machine — can
-be working in the same base at the same time. It happens: eleven new notes
+Another session — another person, or another agent — can be working in the
+same base at the same time. It happens: eleven new notes
 appearing in the middle of a review is a real thing that has occurred.
 
 Before editing a note you did not write in this session, look at its `reviewed`
 date and its modification time on disk. If someone just touched it, do not write
 over it. And if the change you were about to make is already made, say so and
 move on instead of redoing it.
-
-If you work from more than one machine, `tools/syncguard.py` turns this from
-vigilance into a check — see [SYNC.md](SYNC.md). It is optional and off unless
-you set it up.
 
 ## What the linter cannot do
 

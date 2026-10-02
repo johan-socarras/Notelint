@@ -55,14 +55,14 @@ curl -fsSL https://raw.githubusercontent.com/johan-socarras/notelint/main/instal
 & ([scriptblock]::Create((irm https://raw.githubusercontent.com/johan-socarras/notelint/main/install.ps1))) -Base C:\my-brain
 ```
 
-The base is **self-contained**: the tools are installed inside it, so if you
-later move it into a synced folder, they travel with it. Re-running the
-installer is safe — it adds what is missing and leaves your files alone.
+The base is **self-contained**: the tools are installed inside it, so moving
+the folder moves everything. Re-running the installer is safe — it adds what
+is missing and leaves your files alone.
 
 That includes the tools, so re-running does **not** upgrade them. To bring an
-existing base up to date, delete `tools/notelint.py`, `tools/syncguard.py` and
-`tools/power.py` (and `~/.claude/skills/notelint`, if you want the newer skill)
-and run the installer again. Notes, `PROTOCOL.md` and the templates are never
+existing base up to date, delete `tools/notelint.py` and `tools/power.py` (and
+`~/.claude/skills/notelint`, if you want the newer skill) and run the installer
+again. Notes, `PROTOCOL.md` and the templates are never
 replaced.
 
 Piping a script from the internet into a shell is a thing you should only do
@@ -315,37 +315,11 @@ update is indistinguishable from no update at all.
 `docs/PROTOCOL.md` is the routine I use: run the linter before writing anything,
 fix notes rather than stack new ones, propagate, then run it again until clean.
 
-## Optional tools
+## Optional tool
 
-Two extras live in `tools/`. Both are standalone — `notelint.py` does not import
-either one, and if you delete them nothing breaks. They are here because a
-knowledge base you actually use every day ends up needing them.
-
-### `syncguard.py` — for working from more than one machine
-
-Keep the base in a synced folder and you will eventually open the laptop and
-start writing before the sync finished pulling what you did on the desktop. The
-sync client resolves that by leaving two files with `conflicted copy` in the
-name, and your base quietly grows a second truth.
-
-```sh
-python tools/syncguard.py . --status    # what every machine last reported
-python tools/syncguard.py . --wait 180  # block until the sync lands
-python tools/syncguard.py . --stamp     # "I finished here" - run when done
-```
-
-It hashes every note, and each machine stamps that hash when it finishes. The
-check runs on the **receiving** side: you never have to prove the other machine
-finished uploading — the machine you sit down at tells you whether it all
-arrived.
-
-It does not care which sync tool you use. OneDrive, Dropbox, Drive, Syncthing, a
-git remote, rsync, a NAS — it compares content, so anything that eventually makes
-two folders match will do. Configure it in `.sync/config.json`: turn it off
-entirely with `"enabled": false`, or list `"machines"` when you have three
-computers and only want two of them to count.
-
-Full guide, including the traps: [`docs/SYNC.md`](docs/SYNC.md).
+One extra lives in `tools/`. It is standalone — `notelint.py` does not import
+it, and if you delete it nothing breaks. It is here because a knowledge base you
+actually use every day ends up needing it.
 
 ### `power.py` — shut down or suspend when the work is done
 
@@ -366,9 +340,9 @@ hibernates instead of sleeping when hibernation is enabled, which it usually is;
 
 ## Make it yours
 
-Everything here is small on purpose. The linter is one file; the guard is
-another; the power script is a third. No dependencies, no build step, no
-framework to learn before you can change a line.
+Everything here is small on purpose. The linter is one file; the power script
+is another. No dependencies, no build step, no framework to learn before you
+can change a line.
 
 That is deliberate. The point of a knowledge base is that it fits the way *you*
 work, and the moment a tool is too big to read in a sitting, you stop adapting
@@ -397,7 +371,7 @@ enough to pass whole, and `tests/` will tell you if you broke something.
 python tests/test_notelint.py
 ```
 
-Forty-nine tests, no framework. Every check plants its own fault and asserts it
+Forty-seven tests, no framework. Every check plants its own fault and asserts it
 fires — a linter that never reports anything looks identical to a clean
 codebase, so each check has to be proven capable of failing.
 
