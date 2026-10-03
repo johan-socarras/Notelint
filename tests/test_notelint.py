@@ -809,6 +809,20 @@ def how_to_verify_goes_last(base):
         "a section after the verification hides it from whoever reads to the end"
 
 
+@case
+def unreviewed_notes_print_dependencies_first(base):
+    import io, contextlib
+    old = str(TODAY - datetime.timedelta(days=notelint.DAYS_UNREVIEWED + 5))
+    note(base, "Alpha", "aaa-leaf", title="Built on top of the ground", reviewed=old,
+         depends="zzz-ground")
+    note(base, "Alpha", "zzz-ground", title="The thing underneath", reviewed=old)
+    with contextlib.redirect_stdout(io.StringIO()) as out:
+        notelint.main([str(base), "--report-only"])
+    text = out.getvalue().split("\n  UNREVIEWED")[1].split("\n\n")[0]
+    assert text.index("zzz-ground") < text.index("aaa-leaf"), \
+        "confirm what a note rests on before the note, not alphabetically"
+
+
 def main():
     passed = failed = 0
     for fn in CASES:

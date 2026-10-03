@@ -950,12 +950,20 @@ def main(argv=None):
         buckets = {}
         for cat, i, d in findings:
             buckets.setdefault(cat, []).append((i, d))
-        for cat in ORDER:
+        pos = topo_order(everything_notes, V)
+        # A category missing from ORDER still prints, last, rather than vanish.
+        for cat in ORDER + sorted(k for k in buckets if k not in ORDER):
             if cat not in buckets:
                 continue
             print("")
             print("  " + cat.upper() + "  (" + str(len(buckets[cat])) + ")")
-            for i, d in sorted(buckets[cat]):
+            if cat in ("unreviewed", "propagation"):
+                # Dependencies first: reviewed in this order, they do not
+                # fire propagation findings at each other.
+                rows = sorted(buckets[cat], key=lambda x: (pos.get(x[0], 0), x[0]))
+            else:
+                rows = sorted(buckets[cat])
+            for i, d in rows:
                 print("    " + i.ljust(42) + " " + d)
         print("")
 
