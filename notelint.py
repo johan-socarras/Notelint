@@ -36,6 +36,8 @@ TODAY = datetime.date.today()
 # and a decision with depends-on links, every 180. An idea does not age.
 DAYS_UNREVIEWED = 60
 DAYS_UNREVIEWED_LONG = 180
+# A doubt nobody resolves in two weeks is no longer a doubt: it is an abandoned note.
+DAYS_UNVERIFIED = 14
 
 # Directories at the base that are never projects.
 NEVER_A_PROJECT = {"templates", "tools", "docs", ".git", ".github", "node_modules"}
@@ -539,6 +541,9 @@ def check(notes, clashes, base, V, ambiguous=()):
                             + " days since last review (allows " + str(window(n, V)) + ")"))
             if not n["reviewed"]:
                 out.append(("format", i, "'" + F["reviewed"] + "' is missing"))
+        elif n["status"] == UNVERIFIED and r and (TODAY - r).days > DAYS_UNVERIFIED:
+            out.append(("stale unverified", i, str((TODAY - r).days)
+                        + " days unverified: check it, or drop it with the reason"))
 
     # 4. zombies: a closed note still treated as alive by a current one.
     #    `related` towards a dropped note is legitimate: the cheap link may point
@@ -616,7 +621,7 @@ def check(notes, clashes, base, V, ambiguous=()):
 
 ORDER = ["inbox", "duplicate id", "format", "wrong project", "broken link", "ambiguous link",
          "dead evidence", "evidence changed", "touched unreviewed",
-         "expired", "unreviewed", "zombie", "unblocked", "propagation",
+         "expired", "unreviewed", "stale unverified", "zombie", "unblocked", "propagation",
          "unclaimed", "duplicate?"]
 
 

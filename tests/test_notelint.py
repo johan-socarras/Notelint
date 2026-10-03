@@ -680,6 +680,19 @@ def modification_times_are_ignored_inside_git(base):
         "a clone rewrites every modification time; it would report every note"
 
 
+@case
+def a_doubt_left_for_weeks_is_reported(base):
+    old = str(TODAY - datetime.timedelta(days=notelint.DAYS_UNVERIFIED + 3))
+    fresh = str(TODAY - datetime.timedelta(days=notelint.DAYS_UNVERIFIED - 3))
+    note(base, "Alpha", "stale", title="Nobody came back to check this", status="unverified",
+         reviewed=old)
+    note(base, "Alpha", "fresh", title="Raised this week, still open", status="unverified",
+         reviewed=fresh)
+    found = run(base)
+    assert ("stale unverified", "stale") in found, "two weeks in doubt is abandonment"
+    assert ("stale unverified", "fresh") not in found
+
+
 def main():
     passed = failed = 0
     for fn in CASES:

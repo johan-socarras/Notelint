@@ -166,6 +166,7 @@ linter can act on:
 | `touched unreviewed` | The note itself was modified after its `reviewed` date: someone edited it without confirming it, by hand or an agent that skipped the bump |
 | `expired` | `expires` has passed and the note still says `current` |
 | `unreviewed` | A `current` note hasn't been confirmed in 60 days — 180 for a `reference`, an `incident`, or a `decision` that declares what it depends on; an `idea` never ages |
+| `stale unverified` | A note has been `unverified` for more than 14 days — a doubt nobody resolves is an abandoned note: check it, or drop it with the reason |
 | `zombie` | A `superseded`/`dropped` note is still treated as live by an open one (a `related` link to a `dropped` note is fine: that is what keeping it is for) |
 | `unblocked` | A blocker closed, so blocked work is free and nobody noticed |
 | **`propagation`** | A note was reviewed **after** something that declared a dependency on it |
