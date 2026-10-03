@@ -175,11 +175,12 @@ linter can act on:
 | **`propagation`** | A note was reviewed **after** something that declared a dependency on it |
 | `hidden todo` | A current note that is not a `todo` carries the ⏳ mark — a task written there never reaches `OPEN.md`. Give it a `todo` note of its own and link to it |
 | `past version` | In a project whose note carries `installed-version: N`, a current `todo` whose file name names an older build `vM`, or whose title names one as the highest. It is what is left when a plan changes and a note is fixed inside but not outside |
+| `no verification` | A current note other than an `idea` has no `How to verify` section, or an empty one. A rule of conduct may title it `How to apply` and say how you notice the rule was broken |
 | **`unclaimed`** | A file or folder is in the project and **no note explains why it exists** (build junk like `__pycache__`, `node_modules` and `target` is skipped) |
 | `duplicate?` | Two current notes in one project have near-identical titles |
 | `ambiguous link` | `[[name]]` matches notes in two projects, so it points at neither |
 | `inbox` | `INBOX.md` at the base has lines under `## To process` — someone changed something by hand and left word why, and no note accounts for it yet. Turn each line into a note, then move it under `## Processed` |
-| `duplicate id`, `wrong project`, `format` | Structural mistakes, including a malformed date or a `reviewed` date in the future |
+| `duplicate id`, `wrong project`, `format` | Structural mistakes, including a malformed date, a `reviewed` date in the future, or a section after `How to verify` (it goes last) |
 
 `evidence changed` and `touched unreviewed` read modification times, so they
 stay quiet when the base sits inside a git work tree: a clone, a checkout or a

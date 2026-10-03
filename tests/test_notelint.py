@@ -41,9 +41,12 @@ links:
 
 def note(base, project, name, title="A claim", type="fact", status="current",
          reviewed=None, expires="", evidence=(), depends="", supersedes="",
-         blocks="", related="", body="Body."):
+         blocks="", related="", body="Body.", verify="Read it again."):
     d = base / project / "notes"
     d.mkdir(parents=True, exist_ok=True)
+    # Every current note owes a 'How to verify'; pass verify=None to leave it out.
+    if verify is not None:
+        body += "\n\n## How to verify\n\n" + verify
     ev = "\n".join("  - " + e for e in evidence)
     (d / (name + ".md")).write_text(NOTE.format(
         title=title, type=type, project=project, status=status,
@@ -777,6 +780,33 @@ def an_installed_version_that_is_not_a_number_is_a_format_error(base):
     note(base, "Alpha", "what-alpha-is", title="Alpha is a desktop app")
     with_installed(base, "Alpha", "what-alpha-is", "latest")
     assert ("format", "what-alpha-is") in run(base)
+
+
+@case
+def a_current_note_without_how_to_verify_is_reported(base):
+    note(base, "Alpha", "bare", title="Something claimed with no way to check it",
+         verify=None)
+    note(base, "Alpha", "empty", title="A heading with nothing under it", verify="")
+    note(base, "Alpha", "notion", title="Maybe cache the feed list", type="idea",
+         verify=None)
+    found = run(base)
+    assert ("no verification", "bare") in found, "the third rule, enforced"
+    assert ("no verification", "empty") in found, "an empty section checks nothing"
+    assert ("no verification", "notion") not in found, "an idea asserts nothing to check"
+
+
+@case
+def a_rule_of_conduct_is_checked_by_how_to_apply(base):
+    note(base, "Alpha", "rule", title="Never deploy on a Friday", type="decision",
+         verify=None, body="Body.\n\n## How to apply\n\nA Friday tag in the release log.")
+    assert not any(c == "no verification" for c, _ in run(base))
+
+
+@case
+def how_to_verify_goes_last(base):
+    note(base, "Alpha", "one", verify="Run it.\n\n## Background\n\nLong story.")
+    assert ("format", "one") in run(base), \
+        "a section after the verification hides it from whoever reads to the end"
 
 
 def main():

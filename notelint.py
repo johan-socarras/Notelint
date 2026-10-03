@@ -342,8 +342,11 @@ def sections(body):
 
 
 def is_verification(title):
+    """'How to apply' is the heading for a rule of conduct: it says how you
+    notice the rule was broken, which is its way of being checked."""
     t = fold(title)
     return (t.startswith("how to verify") or t.startswith("how to check")
+            or t.startswith("how to apply")
             or t.startswith("como se comprueba") or t.startswith("como se aplica"))
 
 
@@ -549,6 +552,23 @@ def check(notes, clashes, base, V, ambiguous=()):
                             + " days since last review (allows " + str(window(n, V)) + ")"))
             if not n["reviewed"]:
                 out.append(("format", i, "'" + F["reviewed"] + "' is missing"))
+
+            # 3b. the third rule, enforced and not just stated. An idea is
+            #     exempt: it asserts nothing to check.
+            if n["type"] != IDEA:
+                secs = sections(n["body"])
+                found = [(t, b) for t, b in secs if is_verification(t)]
+                if not found:
+                    out.append(("no verification", i,
+                                "current note without a 'How to verify' section"))
+                elif not found[0][1].strip():
+                    out.append(("no verification", i, "the 'How to verify' section is empty"))
+                else:
+                    k = [t for t, _ in secs].index(found[0][0])
+                    after = [t for t, _ in secs[k + 1:]]
+                    if after:
+                        out.append(("format", i, "sections after 'How to verify' ("
+                                    + "; ".join(after) + "): the verification goes last"))
         elif n["status"] == UNVERIFIED and r and (TODAY - r).days > DAYS_UNVERIFIED:
             out.append(("stale unverified", i, str((TODAY - r).days)
                         + " days unverified: check it, or drop it with the reason"))
@@ -693,7 +713,7 @@ def check(notes, clashes, base, V, ambiguous=()):
 ORDER = ["inbox", "duplicate id", "format", "wrong project", "broken link", "ambiguous link",
          "dead evidence", "evidence changed", "touched unreviewed",
          "expired", "unreviewed", "stale unverified", "zombie",
-         "supersedes a live note", "no successor", "unblocked", "permanent block", "propagation", "hidden todo", "past version",
+         "supersedes a live note", "no successor", "unblocked", "permanent block", "propagation", "hidden todo", "past version", "no verification",
          "unclaimed", "duplicate?"]
 
 
