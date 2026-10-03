@@ -348,10 +348,12 @@ just from inside the base.
 
 It is deliberately short — it *locates* the procedure instead of restating it, so
 it cannot drift out of sync with `docs/PROTOCOL.md`. What it adds is the handful
-of things no file in the repo says: that someone else may be editing the same
-base right now, that you must never invent a "How to verify" you haven't run,
-that a note is `dropped` with a reason rather than deleted, and that a silent
-update is indistinguishable from no update at all.
+of things no file in the repo says: that a plain question is answered with
+`search` rather than a read of the whole index, that moving a file needs no
+audit first, that someone else may be editing the same base right now, that
+you must never invent a "How to verify" you haven't run, that a note is
+`dropped` with a reason rather than deleted, and that a silent update is
+indistinguishable from no update at all.
 
 `docs/PROTOCOL.md` is the routine I use: run the linter before writing anything,
 fix notes rather than stack new ones, propagate, then run it again until clean.

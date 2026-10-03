@@ -34,6 +34,11 @@ Its report is the starting point — not memory, and not whatever looks urgent.
 Exit code `1` means there are findings. Read them first, and let them tell you
 what the base needs before you decide what to add.
 
+Lines under `INBOX` are what someone changed by hand and why, left in
+`INBOX.md` at the base. Do not ask them what they touched: it is written
+there. Account for each line like any other fact, then move it under
+`## Processed`.
+
 ## 3. Follow the protocol
 
 Eight steps and three rules. In a base made by the installer it is
@@ -47,7 +52,33 @@ which sits beside the protocol in both layouts.
 `OPEN.md` shows the work (with blocking chains in order) and `INDEX.md` shows the
 content. Both are generated — never edit them by hand.
 
-## 4. Scope
+## 4. If you are only asked a question
+
+"What is open in X?", "what did we decide about Y?": **search first, not the
+index.**
+
+```bash
+python tools/notelint.py search <words> [--project P] [--type T] [--status S] [--all]
+python notelint.py search <words> --base <base>     # from a clone
+```
+
+It answers in a few lines with the notes that contain every word, best first.
+Read only the ones you need (it prints their paths) and answer **without
+running the linter, without reading `INDEX.md` or `OPEN.md` whole, and without
+opening the protocol**. If the person wants to see a note, `open <id>` opens it
+in their program and prints the path as well.
+
+A full `--report-only` run is for questions about the base as a whole ("what
+is open?" with no project, "are there findings?"). If that report has
+findings, say so: they are part of the answer.
+
+**A mechanical operation — moving, renaming, deleting — needs no audit
+first.** Do it; one search for the old path, limited to the `notes/` folders
+and any scripts, fixes the citations; and run the linter **once at the end**,
+`--report-only`, on the project you touched. If something mechanical runs past
+five minutes, stop and say so in one line.
+
+## 5. Scope
 
 - If the conversation is about one project, "update the notes" means **that
   project**.
@@ -68,6 +99,9 @@ content. Both are generated — never edit them by hand.
 - **Never delete a note to tidy up.** A wrong turn becomes `dropped` **with the
   reason**, so nobody proposes it again in six months believing it is new. A
   replaced note becomes `superseded`, and the note replacing it says so.
+- **The date you write in `reviewed` is the one the linter prints** in its
+  header — the machine's local date — not your own clock, which may run on UTC
+  and turn the day over hours early. A future `reviewed` is a format error.
 - **Report what changed** when you finish: notes touched, closed, opened. A
   silent update is indistinguishable from no update.
 
