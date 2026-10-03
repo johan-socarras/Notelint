@@ -26,9 +26,14 @@ session rather than guessing each time.
 ## 2. Run the linter before reading or writing anything
 
 ```bash
-cd <base> && python tools/notelint.py .    # a base made by the installer
-python notelint.py <base>                # a clone of the repository
+cd <base> && python tools/notelint.py . --project <name>    # a base made by the installer
+python notelint.py <base> --project <name>                # a clone of the repository
 ```
+
+With the project the conversation is about (see "Scope" below); without
+`--project` only when no project is in view. The whole report mixes every
+project's findings, and the one that matters gets buried. The views are
+regenerated whole either way, and links into other projects still resolve.
 
 Its report is the starting point — not memory, and not whatever looks urgent.
 Exit code `1` means there are findings. Read them first, and let them tell you

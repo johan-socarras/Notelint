@@ -27,10 +27,14 @@ there.** Unexplained material is material nobody dares delete in six months.
 
 1. **Run the linter before writing anything.**
    ```bash
-   python tools/notelint.py .    # a base made by the installer
-   python notelint.py <base>     # a clone of the repository
+   python tools/notelint.py . --project <name>    # a base made by the installer
+   python notelint.py <base> --project <name>     # a clone of the repository
    ```
    Start from what it reports, not from what you remember.
+
+   Name the project the update is about; leave `--project` out only when it
+   covers the whole base. A report of every project buries the finding that
+   matters under the others. The views are regenerated whole either way.
 
    Lines it prints under `INBOX` come from `INBOX.md` at the base: someone
    changed something by hand, outside this routine, and left one line saying
