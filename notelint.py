@@ -73,6 +73,10 @@ VOCAB = {
     },
 }
 
+# Marks a loose task written in a note's body. In a todo note it is fine; in
+# any other type it is work that OPEN.md will never list.
+PENDING_MARK = "⏳"   # ⏳
+
 RE_WIKI = re.compile(r"\[\[([^\]|#]+)")
 RE_CODE = re.compile(r"```.*?```|`[^`\n]*`", re.S)
 
@@ -613,6 +617,13 @@ def check(notes, clashes, base, V, ambiguous=()):
                 out.append(("propagation", i,
                             d + " was reviewed " + str(rb) + ", this is still at " + str(ra)))
 
+    # 6b. hidden todo: the ⏳ marker inside a note that is not a todo never
+    #     reaches OPEN.md, so the work drops out of sight.
+    for i, n in sorted(notes.items()):
+        if n["type"] != TODO and n["status"] == CURRENT and PENDING_MARK in n["body"]:
+            out.append(("hidden todo", i, "carries " + PENDING_MARK + " but is a '" + n["type"]
+                        + "': it never shows in " + V["open"]))
+
     # 7. unclaimed material: something is in the project and no note claims it
     for c in {n["folder"] for n in notes.values()}:
         claimed, cited = claimed_paths([n for n in notes.values() if n["folder"] == c], c)
@@ -648,7 +659,7 @@ def check(notes, clashes, base, V, ambiguous=()):
 ORDER = ["inbox", "duplicate id", "format", "wrong project", "broken link", "ambiguous link",
          "dead evidence", "evidence changed", "touched unreviewed",
          "expired", "unreviewed", "stale unverified", "zombie",
-         "supersedes a live note", "no successor", "unblocked", "permanent block", "propagation",
+         "supersedes a live note", "no successor", "unblocked", "permanent block", "propagation", "hidden todo",
          "unclaimed", "duplicate?"]
 
 

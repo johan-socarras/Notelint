@@ -730,6 +730,17 @@ def only_a_todo_may_block(base):
     assert ("permanent block", "gate") not in found
 
 
+@case
+def a_task_marked_inside_a_fact_is_hidden_work(base):
+    note(base, "Alpha", "fact", title="The importer drops empty titles",
+         body="Measured on the March dump.\n\n⏳ Patch the importer to keep them.")
+    note(base, "Alpha", "todo", title="Ship the new importer", type="todo",
+         body="⏳ Wire the flag.")
+    found = run(base)
+    assert ("hidden todo", "fact") in found, "OPEN.md lists todo notes, not marks in facts"
+    assert ("hidden todo", "todo") not in found
+
+
 def main():
     passed = failed = 0
     for fn in CASES:
