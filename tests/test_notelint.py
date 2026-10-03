@@ -132,8 +132,55 @@ def unreviewed_for_too_long(base):
 @case
 def zombie_reference(base):
     note(base, "Alpha", "dead", status="dropped")
-    note(base, "Alpha", "alive", title="Totally other wording", related="dead")
+    note(base, "Alpha", "alive", title="Totally other wording", depends="dead")
     assert ("zombie", "alive") in run(base)
+
+
+@case
+def related_may_point_at_a_dropped_note(base):
+    note(base, "Alpha", "dead", status="dropped")
+    note(base, "Alpha", "alive", title="Totally other wording", related="dead")
+    assert not any(c == "zombie" for c, _ in run(base)), \
+        "a dropped note is kept so it can be pointed at; related is the cheap way"
+
+
+@case
+def related_to_a_superseded_note_is_a_zombie(base):
+    note(base, "Alpha", "old", status="superseded")
+    note(base, "Alpha", "alive", title="Totally other wording", related="old")
+    assert ("zombie", "alive") in run(base), "link to whatever superseded it instead"
+
+
+@case
+def a_reference_gets_the_long_clock(base):
+    mid = str(TODAY - datetime.timedelta(days=notelint.DAYS_UNREVIEWED + 5))
+    note(base, "Alpha", "where", title="Where the configs live", type="reference",
+         reviewed=mid)
+    note(base, "Alpha", "fact", title="Something measured once", reviewed=mid)
+    found = run(base)
+    assert ("unreviewed", "fact") in found
+    assert ("unreviewed", "where") not in found, \
+        "a reference describes; it is re-confirmed every 180 days, not 60"
+
+
+@case
+def an_idea_never_ages(base):
+    old = str(TODAY - datetime.timedelta(days=notelint.DAYS_UNREVIEWED_LONG + 5))
+    note(base, "Alpha", "maybe", type="idea", reviewed=old)
+    assert ("unreviewed", "maybe") not in run(base), "an idea asserts nothing to re-confirm"
+
+
+@case
+def a_reviewed_date_in_the_future_is_a_format_error(base):
+    note(base, "Alpha", "one", reviewed=str(TODAY + datetime.timedelta(days=3)))
+    assert ("format", "one") in run(base), \
+        "a future date would silence the unreviewed warning for good"
+
+
+@case
+def a_malformed_date_is_a_format_error(base):
+    note(base, "Alpha", "one", expires="next spring")
+    assert ("format", "one") in run(base)
 
 
 @case

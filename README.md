@@ -163,14 +163,14 @@ linter can act on:
 | `broken link` | `[[name]]` points at a note that doesn't exist (code spans are ignored) |
 | `dead evidence` | A cited file is gone from disk |
 | `expired` | `expires` has passed and the note still says `current` |
-| `unreviewed` | A `current` note hasn't been confirmed in 60 days |
-| `zombie` | A `superseded`/`dropped` note is still treated as live by a current one |
+| `unreviewed` | A `current` note hasn't been confirmed in 60 days — 180 for a `reference`, an `incident`, or a `decision` that declares what it depends on; an `idea` never ages |
+| `zombie` | A `superseded`/`dropped` note is still treated as live by an open one (a `related` link to a `dropped` note is fine: that is what keeping it is for) |
 | `unblocked` | A blocker closed, so blocked work is free and nobody noticed |
 | **`propagation`** | A note was reviewed **after** something that declared a dependency on it |
 | **`unclaimed`** | A file or folder is in the project and **no note explains why it exists** (build junk like `__pycache__`, `node_modules` and `target` is skipped) |
 | `duplicate?` | Two current notes in one project have near-identical titles |
 | `ambiguous link` | `[[name]]` matches notes in two projects, so it points at neither |
-| `duplicate id`, `wrong project`, `format` | Structural mistakes |
+| `duplicate id`, `wrong project`, `format` | Structural mistakes, including a malformed date or a `reviewed` date in the future |
 
 The two in bold are the ones I haven't seen packaged elsewhere, and they
 are the ones that make the base behave like a system instead of a folder:
@@ -371,7 +371,7 @@ enough to pass whole, and `tests/` will tell you if you broke something.
 python tests/test_notelint.py
 ```
 
-Forty-seven tests, no framework. Every check plants its own fault and asserts it
+No framework. Every check plants its own fault and asserts it
 fires — a linter that never reports anything looks identical to a clean
 codebase, so each check has to be proven capable of failing.
 

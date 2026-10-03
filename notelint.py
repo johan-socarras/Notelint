@@ -30,7 +30,12 @@ except Exception:
     pass
 
 TODAY = datetime.date.today()
+
+# Two clocks. What moves (todo, fact, and a decision that does not say what it
+# rests on) is re-confirmed every 60 days; what describes (reference, incident)
+# and a decision with depends-on links, every 180. An idea does not age.
 DAYS_UNREVIEWED = 60
+DAYS_UNREVIEWED_LONG = 180
 
 # Directories at the base that are never projects.
 NEVER_A_PROJECT = {"templates", "tools", "docs", ".git", ".github", "node_modules"}
@@ -302,6 +307,16 @@ def is_verification(title):
             or t.startswith("como se comprueba") or t.startswith("como se aplica"))
 
 
+def window(n, V):
+    """Days a current note may go unreviewed before it is reported."""
+    DECISION, FACT, TODO, IDEA, INCIDENT, REFERENCE = V["types"]
+    if n["type"] in (REFERENCE, INCIDENT):
+        return DAYS_UNREVIEWED_LONG
+    if n["type"] == DECISION and n["links"][V["edges"][0]]:
+        return DAYS_UNREVIEWED_LONG
+    return DAYS_UNREVIEWED
+
+
 def days_unreviewed(n):
     r = as_date(n["reviewed"])
     return (TODAY - r).days if r else None
@@ -392,6 +407,7 @@ def check(notes, clashes, base, V, ambiguous=()):
     out = []
     CURRENT, SUPERSEDED, DROPPED, UNVERIFIED = V["statuses"]
     DEPENDS, SUPERSEDES, BLOCKS, RELATED = V["edges"]
+    IDEA = V["types"][3]
     ids = set(notes)
 
     for i, a, b in clashes:
@@ -409,6 +425,15 @@ def check(notes, clashes, base, V, ambiguous=()):
         if fold(n["project"]) != fold(n["folder"].name):
             out.append(("wrong project", i,
                         "says '" + n["project"] + "' but lives in " + n["folder"].name))
+        F = V["fields"]
+        for k in ("created", "reviewed", "expires"):
+            if n[k] and not as_date(n[k]):
+                out.append(("format", i, "malformed date in '" + F[k] + "': " + n[k]
+                            + " (use YYYY-MM-DD)"))
+        c, r = as_date(n["created"]), as_date(n["reviewed"])
+        if c and r and r < c:
+            out.append(("format", i, "'" + F["reviewed"] + "' (" + str(r)
+                        + ") is earlier than '" + F["created"] + "' (" + str(c) + ")"))
 
         # 1. broken links
         targets = set()
@@ -432,23 +457,32 @@ def check(notes, clashes, base, V, ambiguous=()):
             x = as_date(n["expires"])
             if x and x < TODAY:
                 out.append(("expired", i, "expired on " + str(x) + " and still current"))
-            r = as_date(n["reviewed"])
-            if r and (TODAY - r).days > DAYS_UNREVIEWED:
-                out.append(("unreviewed", i, str((TODAY - r).days) + " days since last review"))
-            if not r:
-                out.append(("format", i, "'reviewed' missing or malformed"))
+            if r and r > TODAY:
+                # A future date gives a negative age and would silence the warning forever.
+                out.append(("format", i, "'" + F["reviewed"] + "' is in the future: " + str(r)))
+            elif r and n["type"] != IDEA and (TODAY - r).days > window(n, V):
+                out.append(("unreviewed", i, str((TODAY - r).days)
+                            + " days since last review (allows " + str(window(n, V)) + ")"))
+            if not n["reviewed"]:
+                out.append(("format", i, "'" + F["reviewed"] + "' is missing"))
 
-    # 4. zombies: a closed note still treated as alive by a current one
+    # 4. zombies: a closed note still treated as alive by a current one.
+    #    `related` towards a dropped note is legitimate: the cheap link may point
+    #    at what was dropped, that is why it is kept. Towards a superseded note
+    #    it is not: link to whatever superseded it.
     for i, n in sorted(notes.items()):
-        if n["status"] != CURRENT:
+        if n["status"] in (SUPERSEDED, DROPPED):
             continue
         for e in V["edges"]:
             if e == SUPERSEDES:
                 continue
             for d in n["links"][e]:
                 o = notes.get(d)
-                if o and o["status"] in (SUPERSEDED, DROPPED):
-                    out.append(("zombie", i, e + ": " + d + " points at a " + o["status"] + " note"))
+                if not o or o["status"] not in (SUPERSEDED, DROPPED):
+                    continue
+                if e == RELATED and o["status"] == DROPPED:
+                    continue
+                out.append(("zombie", i, e + ": " + d + " points at a " + o["status"] + " note"))
 
     # 5. stale blocker: A blocks B, but A is closed - B is free now.
     # Closed means superseded or dropped. An unverified blocker still blocks:
