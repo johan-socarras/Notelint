@@ -162,6 +162,8 @@ linter can act on:
 |---|---|
 | `broken link` | `[[name]]` points at a note that doesn't exist (code spans are ignored) |
 | `dead evidence` | A cited file is gone from disk |
+| `evidence changed` | A cited file was modified after the `current` note citing it was last reviewed — what the note says may no longer match it |
+| `touched unreviewed` | The note itself was modified after its `reviewed` date: someone edited it without confirming it, by hand or an agent that skipped the bump |
 | `expired` | `expires` has passed and the note still says `current` |
 | `unreviewed` | A `current` note hasn't been confirmed in 60 days — 180 for a `reference`, an `incident`, or a `decision` that declares what it depends on; an `idea` never ages |
 | `zombie` | A `superseded`/`dropped` note is still treated as live by an open one (a `related` link to a `dropped` note is fine: that is what keeping it is for) |
@@ -172,6 +174,12 @@ linter can act on:
 | `ambiguous link` | `[[name]]` matches notes in two projects, so it points at neither |
 | `inbox` | `INBOX.md` at the base has lines under `## To process` — someone changed something by hand and left word why, and no note accounts for it yet. Turn each line into a note, then move it under `## Processed` |
 | `duplicate id`, `wrong project`, `format` | Structural mistakes, including a malformed date or a `reviewed` date in the future |
+
+`evidence changed` and `touched unreviewed` read modification times, so they
+stay quiet when the base sits inside a git work tree: a clone, a checkout or a
+branch switch rewrites those times for every file, and there `git log` is the
+better witness anyway. That is also why the bundled example reports neither
+when you run it from a clone.
 
 The two in bold are the ones I haven't seen packaged elsewhere, and they
 are the ones that make the base behave like a system instead of a folder:

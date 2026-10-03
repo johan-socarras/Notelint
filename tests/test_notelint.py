@@ -640,6 +640,46 @@ def the_inbox_shows_under_a_project_filter(base):
         "the inbox belongs to the whole base, so narrowing the report keeps it"
 
 
+@case
+def evidence_edited_after_the_review_is_reported(base):
+    week_ago = str(TODAY - datetime.timedelta(days=7))
+    (base / "Alpha" / "evidence").mkdir(parents=True, exist_ok=True)
+    (base / "Alpha" / "evidence" / "bench.md").write_text("p95 41 ms\n", encoding="utf-8")
+    note(base, "Alpha", "one", reviewed=week_ago, evidence=["evidence/bench.md"])
+    assert ("evidence changed", "one") in run(base), \
+        "the file the claim rests on changed after the claim was last confirmed"
+
+
+@case
+def a_note_edited_without_bumping_reviewed_is_reported(base):
+    week_ago = str(TODAY - datetime.timedelta(days=7))
+    note(base, "Alpha", "one", reviewed=week_ago)
+    assert ("touched unreviewed", "one") in run(base), \
+        "written today, confirmed a week ago: someone edited it outside the routine"
+
+
+@case
+def a_reviewed_bump_settles_both_modification_checks(base):
+    (base / "Alpha" / "evidence").mkdir(parents=True, exist_ok=True)
+    (base / "Alpha" / "evidence" / "bench.md").write_text("x\n", encoding="utf-8")
+    note(base, "Alpha", "one", evidence=["evidence/bench.md"])
+    found = run(base)
+    assert not any(c in ("evidence changed", "touched unreviewed") for c, _ in found), \
+        "confirming the note today is exactly what clears them"
+
+
+@case
+def modification_times_are_ignored_inside_git(base):
+    week_ago = str(TODAY - datetime.timedelta(days=7))
+    (base / ".git").mkdir()
+    (base / "Alpha" / "evidence").mkdir(parents=True, exist_ok=True)
+    (base / "Alpha" / "evidence" / "bench.md").write_text("x\n", encoding="utf-8")
+    note(base, "Alpha", "one", reviewed=week_ago, evidence=["evidence/bench.md"])
+    found = run(base)
+    assert not any(c in ("evidence changed", "touched unreviewed") for c, _ in found), \
+        "a clone rewrites every modification time; it would report every note"
+
+
 def main():
     passed = failed = 0
     for fn in CASES:

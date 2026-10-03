@@ -123,7 +123,8 @@ def parse(path, folder, V):
     except UnicodeDecodeError:
         txt = path.read_text(encoding="utf-8", errors="replace")
         bad_encoding = True
-    n = {"id": path.stem, "path": path, "folder": folder, "body": "", "errors": []}
+    n = {"id": path.stem, "path": path, "folder": folder, "body": "", "errors": [],
+         "mtime": path.stat().st_mtime}
     for k in ("title", "type", "project", "status", "created", "reviewed", "expires"):
         n[k] = ""
     n["evidence"] = []
@@ -228,14 +229,41 @@ def cite_path(item):
     return item.strip()
 
 
-def evidence_exists(e, folder, base):
+def evidence_path(e, folder, base):
+    """Where a cited path lives on disk, or None if it is a URL or gone."""
     if e.startswith("http://") or e.startswith("https://"):
-        return True
+        return None
     raw = cite_path(e).replace("\\", "/")
     p = Path(raw)
     if p.is_absolute():
-        return p.exists()
-    return (folder / raw).exists() or (base / raw).exists()
+        return p if p.exists() else None
+    for root in (folder, base):
+        if (root / raw).exists():
+            return root / raw
+    return None
+
+
+def evidence_exists(e, folder, base):
+    if e.startswith("http://") or e.startswith("https://"):
+        return True
+    return evidence_path(e, folder, base) is not None
+
+
+def under_git(base):
+    """True when the base sits inside a git work tree.
+
+    A clone, a checkout or a branch switch rewrites the modification time of
+    every file it touches, so there the two checks that read it would report
+    every note at once. Inside git, `git log` is the better witness anyway.
+    """
+    return any((d / ".git").exists() for d in [base] + list(base.parents))
+
+
+def modified(path):
+    try:
+        return datetime.date.fromtimestamp(path.stat().st_mtime)
+    except OSError:
+        return None
 
 
 # ---------------------------------------------------------------------------
@@ -437,6 +465,7 @@ def check(notes, clashes, base, V, ambiguous=()):
     DEPENDS, SUPERSEDES, BLOCKS, RELATED = V["edges"]
     IDEA = V["types"][3]
     ids = set(notes)
+    use_mtime = not under_git(base)
 
     for i, a, b in clashes:
         out.append(("duplicate id", i, "exists in " + a + " and in " + b))
@@ -475,10 +504,27 @@ def check(notes, clashes, base, V, ambiguous=()):
             elif d not in ids:
                 out.append(("broken link", i, "[[" + d + "]] does not exist"))
 
-        # 2. evidence that no longer exists on disk
+        # 2. evidence that no longer exists on disk, or that changed after the
+        #    note was last confirmed: what it says may no longer match
         for e in n["evidence"]:
             if not evidence_exists(e, n["folder"], base):
                 out.append(("dead evidence", i, e))
+            elif use_mtime and r and n["status"] == CURRENT:
+                p = evidence_path(e, n["folder"], base)
+                mod = modified(p) if p and p.is_file() else None
+                if mod and mod > r:
+                    out.append(("evidence changed", i, e + " changed on " + str(mod)
+                                + ", after the review of " + str(r)))
+
+        # 2b. touched, not reviewed: the note itself changed on disk after its
+        #     `reviewed` date. Someone edited it outside the routine - by hand,
+        #     or an agent that did not bump the date. Not an error: the signal
+        #     that it needs a look. Same one-day resolution as the check above.
+        if use_mtime and r:
+            mod = datetime.date.fromtimestamp(n["mtime"])
+            if mod > r:
+                out.append(("touched unreviewed", i, "the file changed on " + str(mod)
+                            + " and '" + F["reviewed"] + "' says " + str(r)))
 
         # 3. expired, or unreviewed for too long
         if n["status"] == CURRENT:
@@ -569,7 +615,7 @@ def check(notes, clashes, base, V, ambiguous=()):
 
 
 ORDER = ["inbox", "duplicate id", "format", "wrong project", "broken link", "ambiguous link",
-         "dead evidence",
+         "dead evidence", "evidence changed", "touched unreviewed",
          "expired", "unreviewed", "zombie", "unblocked", "propagation",
          "unclaimed", "duplicate?"]
 
