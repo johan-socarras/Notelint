@@ -563,6 +563,20 @@ def check(notes, clashes, base, V, ambiguous=()):
                     continue
                 out.append(("zombie", i, e + ": " + d + " points at a " + o["status"] + " note"))
 
+    # 4b. supersedes: only a closed note can be superseded, and every
+    #     superseded note has a successor that says so
+    succeeded = set()
+    for i, n in sorted(notes.items()):
+        for d in n["links"][SUPERSEDES]:
+            succeeded.add(d)
+            o = notes.get(d)
+            if o and o["status"] not in (SUPERSEDED, DROPPED):
+                out.append(("supersedes a live note", i, d + " is still '" + o["status"]
+                            + "': either it becomes " + SUPERSEDED + ", or the link is wrong"))
+    for i, n in sorted(notes.items()):
+        if n["status"] == SUPERSEDED and n["id"] not in succeeded and i not in succeeded:
+            out.append(("no successor", i, "no note declares it with " + SUPERSEDES))
+
     # 5. stale blocker: A blocks B, but A is closed - B is free now.
     # Closed means superseded or dropped. An unverified blocker still blocks:
     # checking it is the first job, not a reason to start what it held back.
@@ -621,7 +635,8 @@ def check(notes, clashes, base, V, ambiguous=()):
 
 ORDER = ["inbox", "duplicate id", "format", "wrong project", "broken link", "ambiguous link",
          "dead evidence", "evidence changed", "touched unreviewed",
-         "expired", "unreviewed", "stale unverified", "zombie", "unblocked", "propagation",
+         "expired", "unreviewed", "stale unverified", "zombie",
+         "supersedes a live note", "no successor", "unblocked", "propagation",
          "unclaimed", "duplicate?"]
 
 

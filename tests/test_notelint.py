@@ -693,6 +693,30 @@ def a_doubt_left_for_weeks_is_reported(base):
     assert ("stale unverified", "fresh") not in found
 
 
+@case
+def superseding_a_note_that_is_still_current_is_reported(base):
+    note(base, "Alpha", "old", title="Poll every minute")
+    note(base, "Alpha", "new", title="Five minutes between polls", supersedes="old")
+    assert ("supersedes a live note", "new") in run(base), \
+        "either the old note becomes superseded, or the link is wrong"
+
+
+@case
+def a_superseded_note_needs_a_successor(base):
+    note(base, "Alpha", "old", title="Poll every minute", status="superseded")
+    note(base, "Alpha", "other", title="Something unrelated entirely")
+    assert ("no successor", "old") in run(base), \
+        "superseded by what? Without the link the reader is left guessing"
+
+
+@case
+def a_proper_supersession_is_quiet(base):
+    note(base, "Alpha", "old", title="Poll every minute", status="superseded")
+    note(base, "Alpha", "new", title="Five minutes between polls", supersedes="old")
+    found = run(base)
+    assert not any(c in ("supersedes a live note", "no successor") for c, _ in found)
+
+
 def main():
     passed = failed = 0
     for fn in CASES:
