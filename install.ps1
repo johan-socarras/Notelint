@@ -18,6 +18,7 @@ param(
     [string]$Base = (Join-Path $HOME 'knowledge-base'),
     [string]$Repo = 'johan-socarras/notelint',
     [string]$Branch = 'main',
+    [string]$Commit = '',
     [string]$FirstProject = 'Example'
 )
 
@@ -73,7 +74,11 @@ New-Item -ItemType Directory -Path $tmp -Force | Out-Null
 
 try {
     $zip = Join-Path $tmp 'src.zip'
-    $url = "https://codeload.github.com/$Repo/zip/refs/heads/$Branch"
+    # A commit, when given, wins over the branch: a commit's archive never
+    # changes, while a branch head is served from a cache that can lag a
+    # fresh push by minutes.
+    $ref = if ($Commit) { $Commit } else { "refs/heads/$Branch" }
+    $url = "https://codeload.github.com/$Repo/zip/$ref"
     $old = $ProgressPreference
     $ProgressPreference = 'SilentlyContinue'
     Invoke-WebRequest -Uri $url -OutFile $zip -UseBasicParsing

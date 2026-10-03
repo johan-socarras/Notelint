@@ -12,8 +12,11 @@ jobs:
     env:
       # The installers download the repo. Point them at the commit under
       # test, not at whatever main holds today; a fork's PR names its own repo.
+      # By SHA, not by branch: codeload caches a branch head, and a push made
+      # minutes after the last one was once handed the previous commit.
       NOTELINT_REPO: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
       NOTELINT_BRANCH: ${{ github.head_ref || github.ref_name }}
+      NOTELINT_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
     strategy:
       fail-fast: false
       matrix:
@@ -58,7 +61,7 @@ jobs:
           # UTF8 under 5.1 writes one, and the linter used to reject the very
           # note the installer had just written.
           $base = "$env:RUNNER_TEMP\kb with space"
-          $cmd = "& ([scriptblock]::Create((Get-Content -Raw install.ps1))) -Base '$base' -Repo '$env:NOTELINT_REPO' -Branch '$env:NOTELINT_BRANCH'"
+          $cmd = "& ([scriptblock]::Create((Get-Content -Raw install.ps1))) -Base '$base' -Repo '$env:NOTELINT_REPO' -Branch '$env:NOTELINT_BRANCH' -Commit '$env:NOTELINT_COMMIT'"
           powershell.exe -NoProfile -ExecutionPolicy Restricted -Command $cmd
           if ($LASTEXITCODE -ne 0) { throw "installer failed under ExecutionPolicy Restricted" }
           # It installed this commit, not whatever main holds today.

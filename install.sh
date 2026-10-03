@@ -19,6 +19,7 @@ set -eu
 # CI points these at the commit under test; nobody else needs them.
 REPO="${NOTELINT_REPO:-johan-socarras/notelint}"
 BRANCH="${NOTELINT_BRANCH:-main}"
+COMMIT="${NOTELINT_COMMIT:-}"
 
 RED=''; GREEN=''; YELLOW=''; BLUE=''; DIM=''; OFF=''
 if [ -t 1 ]; then
@@ -72,7 +73,12 @@ step "Downloading notelint"
 TMP=$(mktemp -d 2>/dev/null || mktemp -d -t notelint)
 trap 'rm -rf "$TMP"' EXIT INT TERM
 
-URL="https://codeload.github.com/$REPO/tar.gz/refs/heads/$BRANCH"
+# A commit, when given, wins over the branch: a commit's archive never
+# changes, while a branch head is served from a cache that can lag a fresh
+# push by minutes.
+REF="refs/heads/$BRANCH"
+[ -n "$COMMIT" ] && REF="$COMMIT"
+URL="https://codeload.github.com/$REPO/tar.gz/$REF"
 if [ "$DL" = "curl" ]; then
     curl -fsSL "$URL" -o "$TMP/src.tar.gz" || die "Download failed: $URL"
 else
