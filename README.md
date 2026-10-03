@@ -239,6 +239,31 @@ rename it.
 | `--verify [DAYS]` | Print every "How to verify", dependencies first |
 | `--exit-zero` | Always exit 0, for when you do not want CI to fail |
 
+## Ask before you read
+
+A question about the base — what is open in a project, what was decided about
+something — should not cost a read of `INDEX.md` from top to bottom. Two
+lookups answer it in a few lines; neither lints nor writes anything:
+
+```bash
+python notelint.py search poll --base example                    # every word must appear
+python notelint.py search --base example --project Kestrel --type todo
+python notelint.py open feed-poll-interval --base example         # prints the path, opens it
+```
+
+`search` folds accents and looks in the title, the id and the body. Words of
+three letters or fewer match whole (`app` does not find `happy`); longer ones
+match inside a word (`instal` finds `installer`). Hits in the title come first,
+then current notes, then todos, then the most recently reviewed.
+`superseded` and `dropped` notes stay out unless you pass `--all` or ask for
+that `--status`. Exit code `1` means nothing matched.
+
+`open` takes an id, or words that match exactly one note, and hands the file to
+whatever your system opens it with — or `--with obsidian`, `--with code`. It
+always prints the path too, so an agent without a screen gets the answer.
+`--base` defaults to the current directory, so from a base made by the
+installer it is just `python tools/notelint.py search …`.
+
 ## Generated views, never hand-edited
 
 Each run rewrites `INDEX.md` (everything, by project and type) and `OPEN.md`

@@ -16,6 +16,11 @@ also gets its own index and its own list of open work.
     python notelint.py --lang es       # Spanish field names
     python notelint.py --project Alpha # report on one project only
 
+    python notelint.py search poll interval --project Alpha --type todo
+        # find notes by words and filters; lints nothing, writes nothing
+    python notelint.py open feed-poll-interval [--with obsidian|code]
+        # open one note (or the only one its words match) and print its path
+
 Exit code is 1 when there are findings, so it works in CI. Use --exit-zero to
 always exit 0.
 
@@ -876,9 +881,185 @@ def write_views(notes, folders, base, V, force=False):
     write_view(base / V["open"], "\n".join(op) + "\n", force)
 
 
+# ---------------------------------------------------------------------------
+# search / open: the cheap lookup. They load the notes and answer; they do not
+# lint and do not write the views. They exist so that a question costs one
+# command instead of a read of INDEX.md from top to bottom.
+# ---------------------------------------------------------------------------
+STOP = {"the", "of", "an", "and", "to", "in", "on", "for", "is", "it",
+        "de", "del", "la", "el", "los", "las", "en", "y", "a", "por", "que", "un",
+        "una", "para", "no", "es", "se", "al", "con", "lo", "su", "sus", "sin", "sobre"}
+
+
+def terms(words):
+    """Search terms: accents folded, filler words dropped. 'pc' is kept."""
+    out = []
+    for w in words:
+        out += [t for t in re.findall(r"[a-z0-9]+", fold(w)) if t not in STOP]
+    return out
+
+
+def matches(t, text):
+    """Up to three letters a term must match a whole word ('app' is not
+    'happy'); from four on, any part does ('instal' finds 'installer')."""
+    if len(t) <= 3:
+        return re.search(r"(?<![a-z0-9])" + re.escape(t) + r"(?![a-z0-9])", text) is not None
+    return t in text
+
+
+def search(notes, words, V, project=None, type_=None, status=None, everything=False):
+    """The notes that contain EVERY term, best first: hits in the title, then
+    current notes, then todos, then the most recently reviewed. Closed notes
+    are left out unless `everything` is set or a status asks for them."""
+    CURRENT, SUPERSEDED, DROPPED = V["statuses"][:3]
+    TODO = V["types"][2]
+    ts = terms(words)
+    hits = []
+    for n in notes.values():
+        if project and fold(project) not in (fold(n["folder"].name), fold(n["project"])):
+            continue
+        if type_ and n["type"] != type_:
+            continue
+        if status and n["status"] != status:
+            continue
+        if not status and not everything and n["status"] in (SUPERSEDED, DROPPED):
+            continue
+        title = fold(n["title"] + " " + n["id"].replace("-", " "))
+        body = fold(n["body"])        # code included: `POLL_INTERVAL` is what gets searched
+        if any(not matches(t, title) and not matches(t, body) for t in ts):
+            continue
+        in_title = sum(1 for t in ts if matches(t, title))
+        d = days_unreviewed(n)
+        key = (-in_title, n["status"] != CURRENT, n["type"] != TODO,
+               9999 if d is None else d, n["id"])
+        hits.append((key, n))
+    hits.sort(key=lambda x: x[0])
+    return [n for _, n in hits]
+
+
+def print_search(hits, words, filters, base, most=15):
+    what = " ".join(words) if words else "(no words)"
+    label = " · ".join([what] + [k + "=" + v for k, v in filters if v])
+    print("")
+    print("  " + str(len(hits)) + " note(s) · " + label)
+    for n in hits[:most]:
+        d = days_unreviewed(n)
+        print("  " + n["type"].ljust(10) + " " + n["status"].ljust(10)
+              + ("" if d is None else str(d) + "d").rjust(6) + "   "
+              + n["path"].relative_to(base).as_posix())
+        print(" " * 33 + n["title"])
+    if len(hits) > most:
+        print("  ... and " + str(len(hits) - most) + " more: narrow the words or the filters.")
+    print("")
+
+
+def launch(target):
+    """Hand a path or a URI to whatever the system opens it with."""
+    import os, subprocess
+    if os.name == "nt":
+        os.startfile(target)
+    elif sys.platform == "darwin":
+        subprocess.Popen(["open", target])
+    else:
+        subprocess.Popen(["xdg-open", target])
+
+
+def open_note(notes, ident, V, base, with_=None):
+    """Open a note by id. If no note has that id, search its words and open
+    only when exactly one matches. The path is always printed, for whoever
+    cannot open a window."""
+    import shutil, subprocess, urllib.parse
+    n = notes.get(ident)
+    if n is None:
+        same = [m for m in notes.values() if m["id"] == ident]     # a collided name
+        hits = same or search(notes, ident.split("-"), V, everything=True)
+        if not hits:
+            print("No note matches '" + ident + "'.")
+            return 1
+        if len(hits) > 1:
+            print_search(hits, ident.split("-"), [], base)
+            print("  More than one: give the exact id.")
+            return 1
+        n = hits[0]
+    p = n["path"]
+    print(str(p))
+    try:
+        if with_ == "code":
+            exe = shutil.which("code") or shutil.which("code.cmd")
+            if not exe:
+                print("'code' is not on the PATH.")
+                return 1
+            subprocess.Popen([exe, "-g", str(p)])
+        elif with_ == "obsidian":
+            launch("obsidian://open?path=" + urllib.parse.quote(str(p)))
+        else:
+            launch(str(p))
+    except OSError as e:
+        print("Could not open it: " + str(e))
+        return 1
+    return 0
+
+
+def query(cmd, argv):
+    ap = argparse.ArgumentParser(prog="notelint " + cmd)
+    if cmd == "search":
+        ap.description = ("Find notes by words (accents ignored; title, id and body) "
+                          "and filters. Lints nothing, writes nothing.")
+        ap.add_argument("words", nargs="*")
+        ap.add_argument("--project", help="only this project")
+        ap.add_argument("--type", dest="type_", metavar="TYPE", help="only this type")
+        ap.add_argument("--status", help="only this status")
+        ap.add_argument("--all", action="store_true",
+                        help="include superseded and dropped notes")
+    else:
+        ap.description = ("Open a note with the system's program, or with Obsidian or "
+                          "VS Code, and print its path.")
+        ap.add_argument("id", help="the note's id, or words that match only one note")
+        ap.add_argument("--with", dest="with_", choices=["obsidian", "code"])
+    ap.add_argument("--base", default=".", help="base directory (default: .)")
+    ap.add_argument("--lang", choices=sorted(VOCAB), help="field vocabulary (default: detect)")
+    a = ap.parse_args(argv)
+
+    base = Path(a.base).resolve()
+    if not base.is_dir():
+        print("Not a directory: " + str(base))
+        return 2
+    V = VOCAB[a.lang or detect_lang(base)]
+    everything = projects(base)
+    if not everything:
+        print("No projects found: no directory under " + str(base) + " has a notes/ folder.")
+        return 2
+    notes = load(everything, V)[0]
+
+    if cmd == "open":
+        return open_note(notes, a.id, V, base, a.with_)
+
+    if a.project and fold(a.project) not in {fold(c.name) for c in everything}:
+        print("No such project. Available: " + ", ".join(c.name for c in everything))
+        return 2
+    if a.type_ and a.type_ not in V["types"]:
+        print("--type takes: " + ", ".join(V["types"]))
+        return 2
+    if a.status and a.status not in V["statuses"]:
+        print("--status takes: " + ", ".join(V["statuses"]))
+        return 2
+    if not a.words and not (a.project or a.type_ or a.status):
+        print("search needs words or a filter (--project, --type, --status)")
+        return 2
+    hits = search(notes, a.words, V, a.project, a.type_, a.status, a.all)
+    print_search(hits, a.words, [("project", a.project), ("type", a.type_),
+                                 ("status", a.status), ("all", "yes" if a.all else "")], base)
+    return 0 if hits else 1
+
+
 def main(argv=None):
+    argv = sys.argv[1:] if argv is None else list(argv)
+    if argv and argv[0] in ("search", "open"):
+        return query(argv[0], argv[1:])
+
     ap = argparse.ArgumentParser(
-        prog="notelint", description="A linter for a knowledge base of project notes.")
+        prog="notelint", description="A linter for a knowledge base of project notes.",
+        epilog="Lookups that lint nothing: 'notelint search -h' and 'notelint open -h'.")
     ap.add_argument("base", nargs="?", default=".", help="base directory (default: .)")
     ap.add_argument("--project", action="append", default=[],
                     help="report on this project only (repeatable)")

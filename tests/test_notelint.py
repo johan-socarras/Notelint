@@ -823,6 +823,101 @@ def unreviewed_notes_print_dependencies_first(base):
         "confirm what a note rests on before the note, not alphabetically"
 
 
+# --------------------------------------------------------------------------
+# search and open: the lookups that lint nothing.
+# --------------------------------------------------------------------------
+
+
+def quiet(fn, *args):
+    import io, contextlib
+    with contextlib.redirect_stdout(io.StringIO()) as out:
+        rc = fn(*args)
+    return rc, out.getvalue()
+
+
+@case
+def search_needs_every_word_and_ranks_title_hits_first(base):
+    note(base, "Alpha", "poll-interval", title="Feeds are polled every five minutes")
+    note(base, "Alpha", "bench", title="A benchmark run",
+         body="The poll loop held at five minutes under load.")
+    note(base, "Alpha", "other", title="Something else", body="Five apples.")
+    notes, V = loaded(base)
+    hits = [n["id"] for n in notelint.search(notes, ["poll", "five"], V)]
+    assert hits == ["poll-interval", "bench"], hits
+
+
+@case
+def search_ignores_accents_and_short_words_match_whole(base):
+    note(base, "Alpha", "una", title="Configuración del instalador")
+    note(base, "Alpha", "dos", title="Happy path for the agent")
+    notes, V = loaded(base)
+    assert [n["id"] for n in notelint.search(notes, ["configuracion"], V)] == ["una"]
+    assert [n["id"] for n in notelint.search(notes, ["instal"], V)] == ["una"], \
+        "four letters or more match inside a word"
+    assert notelint.search(notes, ["app"], V) == [], "'app' is not 'happy'"
+
+
+@case
+def search_leaves_closed_notes_out_unless_asked(base):
+    note(base, "Alpha", "old", title="Poll every minute", status="dropped")
+    note(base, "Alpha", "new", title="Poll every five minutes")
+    notes, V = loaded(base)
+    assert [n["id"] for n in notelint.search(notes, ["poll"], V)] == ["new"]
+    assert len(notelint.search(notes, ["poll"], V, everything=True)) == 2
+    assert [n["id"] for n in notelint.search(notes, ["poll"], V, status="dropped")] == ["old"]
+
+
+@case
+def search_filters_by_project_and_type(base):
+    note(base, "Alpha", "a-todo", title="Fix the importer", type="todo")
+    note(base, "Alpha", "a-fact", title="The importer drops titles")
+    note(base, "Beta", "b-todo", title="Fix the exporter", type="todo")
+    rc, out = quiet(notelint.main, ["search", "--base", str(base),
+                                    "--project", "Alpha", "--type", "todo"])
+    assert rc == 0 and "a-todo" in out and "a-fact" not in out and "b-todo" not in out
+
+
+@case
+def search_writes_nothing(base):
+    note(base, "Alpha", "one", title="Feeds are polled")
+    quiet(notelint.main, ["search", "polled", "--base", str(base)])
+    assert not (base / "INDEX.md").exists(), "a lookup must not regenerate the views"
+
+
+@case
+def open_prints_the_path_and_hands_it_to_the_system(base):
+    note(base, "Alpha", "feed-poll-interval", title="Feeds are polled every five minutes")
+    opened = []
+    real = notelint.launch
+    notelint.launch = opened.append
+    try:
+        rc, out = quiet(notelint.main, ["open", "feed-poll-interval", "--base", str(base)])
+        rc2, _ = quiet(notelint.main, ["open", "five-minutes", "--base", str(base),
+                                       "--with", "obsidian"])
+    finally:
+        notelint.launch = real
+    assert rc == 0 and out.strip().endswith("feed-poll-interval.md")
+    assert rc2 == 0, "words that match one note are enough"
+    assert opened[0].endswith("feed-poll-interval.md")
+    assert opened[1].startswith("obsidian://open?path=")
+
+
+@case
+def open_refuses_to_guess_between_several(base):
+    note(base, "Alpha", "poll-a", title="Poll the feeds")
+    note(base, "Alpha", "poll-b", title="Poll the mirrors")
+    opened = []
+    real = notelint.launch
+    notelint.launch = opened.append
+    try:
+        rc, out = quiet(notelint.main, ["open", "poll", "--base", str(base)])
+        rc2, _ = quiet(notelint.main, ["open", "nothing-like-this", "--base", str(base)])
+    finally:
+        notelint.launch = real
+    assert rc == 1 and "exact id" in out and opened == []
+    assert rc2 == 1
+
+
 def main():
     passed = failed = 0
     for fn in CASES:
