@@ -174,6 +174,7 @@ linter can act on:
 | `permanent block` | A note that is not a `todo` uses `blocks`. Only a `todo` gets closed, so a `fact` or a `decision` that blocks holds its target forever |
 | **`propagation`** | A note was reviewed **after** something that declared a dependency on it |
 | `hidden todo` | A current note that is not a `todo` carries the ⏳ mark — a task written there never reaches `OPEN.md`. Give it a `todo` note of its own and link to it |
+| `past version` | In a project whose note carries `installed-version: N`, a current `todo` whose file name names an older build `vM`, or whose title names one as the highest. It is what is left when a plan changes and a note is fixed inside but not outside |
 | **`unclaimed`** | A file or folder is in the project and **no note explains why it exists** (build junk like `__pycache__`, `node_modules` and `target` is skipped) |
 | `duplicate?` | Two current notes in one project have near-identical titles |
 | `ambiguous link` | `[[name]]` matches notes in two projects, so it points at neither |

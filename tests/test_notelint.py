@@ -741,6 +741,44 @@ def a_task_marked_inside_a_fact_is_hidden_work(base):
     assert ("hidden todo", "todo") not in found
 
 
+def with_installed(base, project, name, version):
+    """Add `installed-version: <version>` to an existing note's frontmatter."""
+    p = base / project / "notes" / (name + ".md")
+    p.write_text(p.read_text(encoding="utf-8").replace(
+        "expires:", "installed-version: " + version + "\nexpires:", 1), encoding="utf-8")
+
+
+@case
+def a_todo_named_after_an_old_build_is_reported(base):
+    note(base, "Alpha", "what-alpha-is", title="Alpha is a desktop app")
+    with_installed(base, "Alpha", "what-alpha-is", "62")
+    note(base, "Alpha", "verify-v58-on-the-laptop", title="Check sign-in on the laptop",
+         type="todo")
+    note(base, "Alpha", "check-sync", title="Check sync after v58 and v60", type="todo")
+    note(base, "Alpha", "port-to-v2-protocol", title="Move the client to the new wire format",
+         type="todo")
+    found = run(base)
+    assert ("past version", "verify-v58-on-the-laptop") in found, \
+        "the title was corrected but the file name still says v58"
+    assert ("past version", "check-sync") in found, "v60 is the highest it names, and v62 is out"
+    assert ("past version", "port-to-v2-protocol") not in found, \
+        "v2 has fewer digits than v62: a protocol version, not a build"
+
+
+@case
+def no_installed_version_means_no_version_check(base):
+    note(base, "Alpha", "verify-v58-on-the-laptop", title="Check sign-in", type="todo")
+    assert not any(c == "past version" for c, _ in run(base)), \
+        "a project that does not number its builds is never checked"
+
+
+@case
+def an_installed_version_that_is_not_a_number_is_a_format_error(base):
+    note(base, "Alpha", "what-alpha-is", title="Alpha is a desktop app")
+    with_installed(base, "Alpha", "what-alpha-is", "latest")
+    assert ("format", "what-alpha-is") in run(base)
+
+
 def main():
     passed = failed = 0
     for fn in CASES:

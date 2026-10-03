@@ -54,7 +54,8 @@ VOCAB = {
     "en": {
         "fields": {"title": "title", "type": "type", "project": "project",
                    "status": "status", "created": "created", "reviewed": "reviewed",
-                   "expires": "expires", "evidence": "evidence", "links": "links"},
+                   "expires": "expires", "evidence": "evidence", "links": "links",
+                   "installed": "installed-version"},
         "types": ["decision", "fact", "todo", "idea", "incident", "reference"],
         "statuses": ["current", "superseded", "dropped", "unverified"],
         "edges": ["depends-on", "supersedes", "blocks", "related"],
@@ -64,7 +65,8 @@ VOCAB = {
     "es": {
         "fields": {"title": "titulo", "type": "tipo", "project": "proyecto",
                    "status": "estado", "created": "creada", "reviewed": "revisada",
-                   "expires": "caduca", "evidence": "evidencia", "links": "enlaces"},
+                   "expires": "caduca", "evidence": "evidencia", "links": "enlaces",
+                   "installed": "version-instalada"},
         "types": ["decision", "hecho", "pendiente", "idea", "incidente", "referencia"],
         "statuses": ["vigente", "superado", "descartado", "en-duda"],
         "edges": ["depende-de", "supera-a", "bloquea", "relacionada"],
@@ -78,6 +80,7 @@ VOCAB = {
 PENDING_MARK = "⏳"   # ⏳
 
 RE_WIKI = re.compile(r"\[\[([^\]|#]+)")
+RE_VERSION = re.compile(r"\bv(\d+)\b")
 RE_CODE = re.compile(r"```.*?```|`[^`\n]*`", re.S)
 
 
@@ -131,7 +134,8 @@ def parse(path, folder, V):
         bad_encoding = True
     n = {"id": path.stem, "path": path, "folder": folder, "body": "", "errors": [],
          "mtime": path.stat().st_mtime}
-    for k in ("title", "type", "project", "status", "created", "reviewed", "expires"):
+    for k in ("title", "type", "project", "status", "created", "reviewed", "expires",
+              "installed"):
         n[k] = ""
     n["evidence"] = []
     n["links"] = {e: [] for e in E}
@@ -624,6 +628,36 @@ def check(notes, clashes, base, V, ambiguous=()):
             out.append(("hidden todo", i, "carries " + PENDING_MARK + " but is a '" + n["type"]
                         + "': it never shows in " + V["open"]))
 
+    # 6c. past version: a current todo whose file name names a build older than
+    #     the installed one, or whose title names an older one as the highest.
+    #     It is what is left when a decision changes and a note is fixed inside
+    #     but not outside. The name is checked on its own: a corrected title
+    #     does not cover an old file name.
+    #     Only in projects with a current note carrying `installed-version: N`,
+    #     and only vN with as many digits as N: the v2 of a protocol is not a build.
+    installed = {}
+    for i, n in sorted(notes.items()):
+        if not n["installed"] or n["status"] != CURRENT:
+            continue
+        m = re.fullmatch(r"v?(\d+)", n["installed"].strip().lower())
+        if m:
+            installed[n["folder"]] = (int(m.group(1)), i)
+        else:
+            out.append(("format", i, "'" + F["installed"] + "' takes a number or vN: "
+                        + n["installed"]))
+    for i, n in sorted(notes.items()):
+        if n["folder"] not in installed or n["type"] != TODO or n["status"] != CURRENT:
+            continue
+        v, source = installed[n["folder"]]
+        for where, text, pick in (("the name", n["id"], min),
+                                  ("the title", n["title"].lower(), max)):
+            named = [int(x) for x in RE_VERSION.findall(text) if len(x) == len(str(v))]
+            if named and pick(named) < v:
+                old = str(pick(named))
+                out.append(("past version", i, where + " names v" + old
+                            + " and the installed one is v" + str(v) + " (" + source + "): "
+                            + "fix it, and search the other notes for v" + old))
+
     # 7. unclaimed material: something is in the project and no note claims it
     for c in {n["folder"] for n in notes.values()}:
         claimed, cited = claimed_paths([n for n in notes.values() if n["folder"] == c], c)
@@ -659,7 +693,7 @@ def check(notes, clashes, base, V, ambiguous=()):
 ORDER = ["inbox", "duplicate id", "format", "wrong project", "broken link", "ambiguous link",
          "dead evidence", "evidence changed", "touched unreviewed",
          "expired", "unreviewed", "stale unverified", "zombie",
-         "supersedes a live note", "no successor", "unblocked", "permanent block", "propagation", "hidden todo",
+         "supersedes a live note", "no successor", "unblocked", "permanent block", "propagation", "hidden todo", "past version",
          "unclaimed", "duplicate?"]
 
 
