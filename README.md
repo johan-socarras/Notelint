@@ -24,6 +24,10 @@ code: it reads the whole graph and reports what no longer holds together.
     feed-poll-interval     sqlite-over-postgres was reviewed 2026-09-01,
                            this is still at 2026-08-20
 
+  HIDDEN TODO  (1)
+    retry-storm-incident   carries ⏳ but its type is 'incident':
+                           it never shows in OPEN.md
+
   UNCLAIMED  (1)
     Kestrel                evidence/screenshots
 ```
@@ -81,7 +85,7 @@ python notelint.py example --report-only
 `INDEX.md` and `OPEN.md`, which are committed here so you can read them without
 running anything.
 
-No dependencies, Python 3.8+. The bundled example ships with **three deliberate
+No dependencies, Python 3.8+. The bundled example ships with **four deliberate
 faults** so the first run shows you what a finding looks like. Exit code is `1`
 when there are findings, so it drops straight into CI.
 

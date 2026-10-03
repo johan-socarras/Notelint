@@ -27,6 +27,9 @@ The bug was not the retry count. It was that a per-feed failure could consume
 the shared budget of a serial loop. Fixed with a per-feed deadline, not by
 lowering the retries.
 
+⏳ Alert when a whole poll cycle runs past its budget - this time nothing told
+anyone.
+
 ## How to verify
 
 `grep -n "context.WithTimeout" internal/poller/poller.go` - one per feed.

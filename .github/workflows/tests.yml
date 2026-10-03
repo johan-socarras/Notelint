@@ -38,7 +38,7 @@ jobs:
       - name: Tests
         run: python tests/test_notelint.py
 
-      - name: The bundled example still reports its three planted faults
+      - name: The bundled example still reports its four planted faults
         shell: bash
         run: |
           # The step shell runs with -e, so capture the code instead of
@@ -46,7 +46,7 @@ jobs:
           rc=0
           python notelint.py example --report-only || rc=$?
           # 1 is the documented "there are findings" code, and the example
-          # ships three on purpose. 0 would mean the checks stopped firing.
+          # ships four on purpose. 0 would mean the checks stopped firing.
           test $rc -eq 1 || { echo "expected exit 1, got $rc"; exit 1; }
 
       - name: The installer runs the way a stock Windows runs it

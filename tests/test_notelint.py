@@ -331,11 +331,12 @@ def spanish_vocabulary_is_understood(base):
 
 
 @case
-def the_shipped_example_reports_its_three_planted_faults(base):
+def the_shipped_example_reports_its_four_planted_faults(base):
     repo = Path(__file__).resolve().parent.parent
     found = run(repo / "example")
     for expected in [("dead evidence", "mystery-benchmark"),
                      ("propagation", "feed-poll-interval"),
+                     ("hidden todo", "retry-storm-incident"),
                      ("unclaimed", "Kestrel")]:
         assert expected in found, "example lost its planted fault: " + str(expected)
 

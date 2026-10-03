@@ -628,7 +628,7 @@ def check(notes, clashes, base, V, ambiguous=()):
             continue
         for d in n["links"][BLOCKS]:
             if d in notes:
-                out.append(("permanent block", i, "is a '" + n["type"] + "' and blocks " + d
+                out.append(("permanent block", i, "type '" + n["type"] + "' blocks " + d
                             + ": make it a " + TODO + ", or change the link to "
                             + DEPENDS + " or " + RELATED))
 
@@ -650,8 +650,8 @@ def check(notes, clashes, base, V, ambiguous=()):
     #     reaches OPEN.md, so the work drops out of sight.
     for i, n in sorted(notes.items()):
         if n["type"] != TODO and n["status"] == CURRENT and PENDING_MARK in n["body"]:
-            out.append(("hidden todo", i, "carries " + PENDING_MARK + " but is a '" + n["type"]
-                        + "': it never shows in " + V["open"]))
+            out.append(("hidden todo", i, "carries " + PENDING_MARK + " but its type is '"
+                        + n["type"] + "': it never shows in " + V["open"]))
 
     # 6c. past version: a current todo whose file name names a build older than
     #     the installed one, or whose title names an older one as the highest.
