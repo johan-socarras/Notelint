@@ -170,6 +170,7 @@ linter can act on:
 | **`unclaimed`** | A file or folder is in the project and **no note explains why it exists** (build junk like `__pycache__`, `node_modules` and `target` is skipped) |
 | `duplicate?` | Two current notes in one project have near-identical titles |
 | `ambiguous link` | `[[name]]` matches notes in two projects, so it points at neither |
+| `inbox` | `INBOX.md` at the base has lines under `## To process` — someone changed something by hand and left word why, and no note accounts for it yet. Turn each line into a note, then move it under `## Processed` |
 | `duplicate id`, `wrong project`, `format` | Structural mistakes, including a malformed date or a `reviewed` date in the future |
 
 The two in bold are the ones I haven't seen packaged elsewhere, and they

@@ -600,6 +600,46 @@ def a_cited_file_does_not_claim_its_siblings(base):
         "the parent is implied, not cited: it must not claim the other children"
 
 
+# --------------------------------------------------------------------------
+# Checks carried over from the knowledge base notelint grew out of.
+# --------------------------------------------------------------------------
+
+
+INBOX = """# Inbox
+
+Changed something by hand? Say what and why, one line each.
+
+## To process
+
+- Renamed the staging host to {name}, the old one is gone.
+
+## Processed
+
+- Moved the screenshots into evidence/.
+"""
+
+
+@case
+def an_unprocessed_inbox_line_is_a_finding(base):
+    note(base, "Alpha", "one")
+    (base / "INBOX.md").write_text(INBOX.format(name="kite"), encoding="utf-8")
+    found = notelint.check(*notelint.load(notelint.projects(base), EN)[:2], base, EN)
+    lines = [d for c, _, d in found if c == "inbox"]
+    assert len(lines) == 1 and "kite" in lines[0], \
+        "only what is under 'To process' is pending; 'Processed' is history"
+
+
+@case
+def the_inbox_shows_under_a_project_filter(base):
+    import io, contextlib
+    note(base, "Alpha", "one")
+    (base / "INBOX.md").write_text(INBOX.format(name="kite"), encoding="utf-8")
+    with contextlib.redirect_stdout(io.StringIO()) as out:
+        rc = notelint.main([str(base), "--project", "Alpha", "--report-only"])
+    assert rc == 1 and "INBOX" in out.getvalue(), \
+        "the inbox belongs to the whole base, so narrowing the report keeps it"
+
+
 def main():
     passed = failed = 0
     for fn in CASES:

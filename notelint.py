@@ -57,6 +57,7 @@ VOCAB = {
         "statuses": ["current", "superseded", "dropped", "unverified"],
         "edges": ["depends-on", "supersedes", "blocks", "related"],
         "index": "INDEX.md", "open": "OPEN.md",
+        "inbox": "INBOX.md", "inbox_open": "to process",
     },
     "es": {
         "fields": {"title": "titulo", "type": "tipo", "project": "proyecto",
@@ -66,6 +67,7 @@ VOCAB = {
         "statuses": ["vigente", "superado", "descartado", "en-duda"],
         "edges": ["depende-de", "supera-a", "bloquea", "relacionada"],
         "index": "INDICE.md", "open": "ABIERTO.md",
+        "inbox": "BUZON.md", "inbox_open": "por procesar",
     },
 }
 
@@ -403,8 +405,34 @@ def oldest_block(notes, V, how_many=8):
     return out + [""]
 
 
+def inbox(base, V):
+    """The lines under '## To process' in INBOX.md at the base.
+
+    It is where someone who changed something by hand - outside the routine,
+    without touching any note - leaves word of what and why. Whoever updates
+    the base turns each line into a note, or a fix to one, and moves the line
+    under '## Processed'. Until then it is a finding: the base does not yet
+    account for what happened.
+    """
+    path = base / V["inbox"]
+    if not path.is_file():
+        return []
+    try:
+        txt = path.read_text(encoding="utf-8-sig")
+    except (UnicodeDecodeError, ValueError, OSError):
+        return ["(" + V["inbox"] + " could not be read)"]
+    inside, lines = False, []
+    for line in txt.splitlines():
+        if line.startswith("## "):
+            inside = fold(line[3:]).startswith(V["inbox_open"])
+            continue
+        if inside and line.strip().startswith("- "):
+            lines.append(line.strip()[2:].strip())
+    return lines
+
+
 def check(notes, clashes, base, V, ambiguous=()):
-    out = []
+    out = [("inbox", V["inbox"], line) for line in inbox(base, V)]
     CURRENT, SUPERSEDED, DROPPED, UNVERIFIED = V["statuses"]
     DEPENDS, SUPERSEDES, BLOCKS, RELATED = V["edges"]
     IDEA = V["types"][3]
@@ -540,7 +568,7 @@ def check(notes, clashes, base, V, ambiguous=()):
     return out
 
 
-ORDER = ["duplicate id", "format", "wrong project", "broken link", "ambiguous link",
+ORDER = ["inbox", "duplicate id", "format", "wrong project", "broken link", "ambiguous link",
          "dead evidence",
          "expired", "unreviewed", "zombie", "unblocked", "propagation",
          "unclaimed", "duplicate?"]
@@ -753,7 +781,9 @@ def main(argv=None):
     if folders is not everything:
         names = {c.name for c in folders}
         notes = {i: n for i, n in everything_notes.items() if n["folder"].name in names}
-        mine = set(notes) | names | {i for i, p, q in clashes if p in names or q in names}
+        # The inbox belongs to the whole base, so it shows under any selection.
+        mine = (set(notes) | names | {V["inbox"]}
+                | {i for i, p, q in clashes if p in names or q in names})
         findings = [f for f in findings if f[1] in mine]
 
     print("")
