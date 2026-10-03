@@ -717,6 +717,19 @@ def a_proper_supersession_is_quiet(base):
     assert not any(c in ("supersedes a live note", "no successor") for c, _ in found)
 
 
+@case
+def only_a_todo_may_block(base):
+    note(base, "Alpha", "measured", title="The cache hit rate is 92 percent",
+         blocks="work")
+    note(base, "Alpha", "gate", title="Pick the cache backend", type="todo",
+         blocks="work")
+    note(base, "Alpha", "work", title="Remove the warmup job", type="todo")
+    found = run(base)
+    assert ("permanent block", "measured") in found, \
+        "a fact never closes, so whatever it blocks waits forever"
+    assert ("permanent block", "gate") not in found
+
+
 def main():
     passed = failed = 0
     for fn in CASES:

@@ -171,6 +171,7 @@ linter can act on:
 | `supersedes a live note` | A note `supersedes` one that is still open — either that one becomes `superseded`, or the link is wrong |
 | `no successor` | A `superseded` note that no other note declares with `supersedes`: replaced by what? |
 | `unblocked` | A blocker closed, so blocked work is free and nobody noticed |
+| `permanent block` | A note that is not a `todo` uses `blocks`. Only a `todo` gets closed, so a `fact` or a `decision` that blocks holds its target forever |
 | **`propagation`** | A note was reviewed **after** something that declared a dependency on it |
 | **`unclaimed`** | A file or folder is in the project and **no note explains why it exists** (build junk like `__pycache__`, `node_modules` and `target` is skipped) |
 | `duplicate?` | Two current notes in one project have near-identical titles |

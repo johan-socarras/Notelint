@@ -587,6 +587,18 @@ def check(notes, clashes, base, V, ambiguous=()):
             if d in notes and notes[d]["status"] == CURRENT:
                 out.append(("unblocked", d, "was blocked by " + i + ", now " + n["status"]))
 
+    # 5b. permanent block: only a todo can block, because only a todo gets
+    #     closed. A fact or a decision that blocks holds its target forever.
+    TODO = V["types"][2]
+    for i, n in sorted(notes.items()):
+        if n["status"] in (SUPERSEDED, DROPPED) or n["type"] == TODO:
+            continue
+        for d in n["links"][BLOCKS]:
+            if d in notes:
+                out.append(("permanent block", i, "is a '" + n["type"] + "' and blocks " + d
+                            + ": make it a " + TODO + ", or change the link to "
+                            + DEPENDS + " or " + RELATED))
+
     # 6. propagation: B was reviewed after A, and A said it depends on B
     for i, n in sorted(notes.items()):
         ra = as_date(n["reviewed"])
@@ -636,7 +648,7 @@ def check(notes, clashes, base, V, ambiguous=()):
 ORDER = ["inbox", "duplicate id", "format", "wrong project", "broken link", "ambiguous link",
          "dead evidence", "evidence changed", "touched unreviewed",
          "expired", "unreviewed", "stale unverified", "zombie",
-         "supersedes a live note", "no successor", "unblocked", "propagation",
+         "supersedes a live note", "no successor", "unblocked", "permanent block", "propagation",
          "unclaimed", "duplicate?"]
 
 
