@@ -41,8 +41,8 @@ links:
 
 def note(base, project, name, title="A claim", type="fact", status="current",
          reviewed=None, expires="", evidence=(), depends="", supersedes="",
-         blocks="", related="", body="Body.", verify="Read it again."):
-    d = base / project / "notes"
+         blocks="", related="", body="Body.", verify="Read it again.", where="notes"):
+    d = base / project / where
     d.mkdir(parents=True, exist_ok=True)
     # Every current note owes a 'How to verify'; pass verify=None to leave it out.
     if verify is not None:
@@ -1001,6 +1001,127 @@ def a_note_past_the_cap_is_reported_unless_closed(base):
     assert ("long note", "long") in found
     assert ("long note", "old") not in found, "nobody is meant to keep reading a closed note"
     assert ("long note", "short") not in found
+
+
+# --------------------------------------------------------------------------
+# history/: the notes that no longer describe the present.
+# --------------------------------------------------------------------------
+
+
+@case
+def a_link_into_history_still_resolves(base):
+    note(base, "Alpha", "old-plan", title="The first plan", status="dropped",
+         where="history", verify=None)
+    note(base, "Alpha", "plan", title="The plan in force", related="old-plan",
+         body="It replaced [[old-plan]].")
+    assert run(base) == set(), "moving a note to history must not break a link to it"
+
+
+@case
+def history_does_not_age_nor_watch_its_evidence(base):
+    ancient = str(TODAY - datetime.timedelta(days=notelint.DAYS_UNREVIEWED + 60))
+    note(base, "Alpha", "launch", title="The launch went out late", reviewed=ancient,
+         evidence=["evidence/gone.md"], verify=None, where="history",
+         body="\n".join("Line " + str(k) for k in range(notelint.MAX_LINES + 10)))
+    note(base, "Alpha", "now", title="What is true today")
+    assert run(base) == set(), \
+        "no unreviewed, no dead evidence, no missing verification, no size: the past is not re-verified"
+
+
+@case
+def only_the_past_belongs_in_history(base):
+    note(base, "Alpha", "a-todo", title="Still to do", type="todo", where="history")
+    note(base, "Alpha", "a-rule", title="A decision in force", type="decision", where="history")
+    note(base, "Alpha", "a-doubt", title="Not sure yet", status="unverified", where="history")
+    note(base, "Alpha", "an-incident", title="The outage of last spring", type="incident",
+         where="history")
+    note(base, "Alpha", "an-idea", title="Something to try someday", type="idea",
+         where="history")
+    note(base, "Alpha", "a-dropped", title="A road not taken", type="decision",
+         status="dropped", where="history")
+    found = run(base)
+    for wrong in ("a-todo", "a-rule", "a-doubt"):
+        assert ("format", wrong) in found, wrong + " is present work, not history"
+    for right in ("an-incident", "an-idea", "a-dropped"):
+        assert ("format", right) not in found, right + " belongs there"
+
+
+@case
+def a_project_left_with_only_history_is_still_loaded(base):
+    note(base, "Retired", "what-it-was", title="A tool we no longer run",
+         where="history")
+    note(base, "Alpha", "lesson", title="What Alpha learned from it",
+         related="what-it-was")
+    assert run(base) == set(), "its notes are still link targets"
+
+
+@case
+def a_live_note_resting_on_history_is_reported(base):
+    note(base, "Alpha", "measured", title="The poller held at 41 ms", where="history")
+    note(base, "Alpha", "rests", title="The interval stays at five minutes",
+         depends="measured")
+    note(base, "Alpha", "mentions", title="Some other claim entirely", related="measured")
+    found = run(base)
+    assert ("depends on history", "rests") in found, \
+        "what a live note depends on cannot be past: move it back, or make the link related"
+    assert ("depends on history", "mentions") not in found, "related carries no consequence"
+
+
+@case
+def the_same_name_in_notes_and_history_is_a_clash_not_a_loss(base):
+    note(base, "Alpha", "plan", title="The plan in force")
+    note(base, "Alpha", "plan", title="The first plan", status="dropped",
+         where="history", verify=None)
+    notes, V = loaded(base)
+    assert {n["title"] for n in notes.values()} == {"The plan in force", "The first plan"}
+    assert ("duplicate id", "plan") in run(base)
+
+
+@case
+def history_is_not_unclaimed_material(base):
+    note(base, "Alpha", "old", title="An old claim", status="dropped",
+         where="history", verify=None)
+    note(base, "Alpha", "new", title="A new claim")
+    assert not any(c == "unclaimed" for c, _ in run(base))
+
+
+@case
+def history_stays_out_of_the_views(base):
+    note(base, "Alpha", "old-fact", title="Version one shipped on a Tuesday",
+         where="history")
+    note(base, "Alpha", "now", title="Version two is what runs")
+    notes, V = loaded(base)
+    notelint.write_views(notes, notelint.projects(base), base, V)
+    index = (base / "Alpha" / "INDEX.md").read_text(encoding="utf-8")
+    root = (base / "INDEX.md").read_text(encoding="utf-8")
+    assert "Version two is what runs" in index
+    assert "Version one" not in index and "Version one" not in root, \
+        "a note in history is not part of the present"
+    assert "`history/`: 1 note that" in index and "`Alpha/history/`: 1 note that" in root, \
+        "but the index says it exists, and where"
+
+
+@case
+def search_leaves_history_out_unless_all(base):
+    note(base, "Alpha", "poll-old", title="Poll every minute", where="history")
+    note(base, "Alpha", "poll-new", title="Poll every five minutes")
+    notes, V = loaded(base)
+    assert [n["id"] for n in notelint.search(notes, ["poll"], V)] == ["poll-new"]
+    assert [n["id"] for n in notelint.search(notes, ["poll"], V, everything=True)] \
+        == ["poll-new", "poll-old"], "with --all it comes back, after the present"
+    rc, out = quiet(notelint.main, ["search", "poll", "--base", str(base)])
+    assert "+ 1 in history or closed" in out, "the past is known to exist without opening it"
+
+
+@case
+def verify_and_the_header_leave_history_aside(base):
+    note(base, "Alpha", "old", title="An old fact", where="history",
+         verify="ls old-thing")
+    note(base, "Alpha", "now", title="A fact of today", verify="ls new-thing")
+    rc, out = quiet(notelint.main, [str(base), "--verify"])
+    assert "new-thing" in out and "old-thing" not in out
+    rc, out = quiet(notelint.main, [str(base), "--report-only"])
+    assert "1 notes in 1 project(s), 1 in history" in out
 
 
 def main():

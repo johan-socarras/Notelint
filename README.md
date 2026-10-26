@@ -12,9 +12,9 @@ someone fixed a typo.
 code: it reads the whole graph and reports what no longer holds together.
 
 ```
-  notelint - 9 notes in 1 project(s)   (2026-09-03)
+  notelint - 8 notes in 1 project(s), 1 in history   (2026-09-03)
   ------------------------------------------------------------------
-  Kestrel                9 notes     2 open     0 unverified
+  Kestrel                8 notes     2 open     0 unverified     1 in history
   ------------------------------------------------------------------
 
   DEAD EVIDENCE  (1)
@@ -172,6 +172,7 @@ linter can act on:
 | `unreviewed` | A `current` note hasn't been confirmed in 60 days — 180 for a `reference`, an `incident`, or a `decision` that declares what it depends on; an `idea` never ages |
 | `stale unverified` | A note has been `unverified` for more than 14 days — a doubt nobody resolves is an abandoned note: check it, or drop it with the reason |
 | `zombie` | A `superseded`/`dropped` note is still treated as live by an open one (a `related` link to a `dropped` note is fine: that is what keeping it is for) |
+| `depends on history` | A live note `depends-on` or `blocks` a note in `history/` that is still current: either that note is not past, or the link is `related` |
 | `supersedes a live note` | A note `supersedes` one that is still open — either that one becomes `superseded`, or the link is wrong |
 | `no successor` | A `superseded` note that no other note declares with `supersedes`: replaced by what? |
 | `unblocked` | A blocker closed, so blocked work is free and nobody noticed |
@@ -278,13 +279,37 @@ three letters or fewer match whole (`app` does not find `happy`); longer ones
 match inside a word (`instal` finds `installer`). Hits in the title come first,
 then current notes, then todos, then the most recently reviewed.
 `superseded` and `dropped` notes stay out unless you pass `--all` or ask for
-that `--status`. Exit code `1` means nothing matched.
+that `--status`, and notes in `history/` unless you pass `--all`; a last line
+says how many were left out. Exit code `1` means nothing matched.
 
 `open` takes an id, or words that match exactly one note, and hands the file to
 whatever your system opens it with — or `--with obsidian`, `--with code`. It
 always prints the path too, so an agent without a screen gets the answer.
 `--base` defaults to the current directory, so from a base made by the
 installer it is just `python tools/notelint.py search …`.
+
+## The past goes to `history/`
+
+Nothing is deleted, so a base that lives for years fills with notes that were
+true once: the decision you reversed, the outage of last spring, the plan
+before this one. Kept in `notes/`, they crowd the index, show up in every
+search, and age into `unreviewed` findings that nobody is ever going to clear.
+
+Each project can have a `history/` folder beside `notes/`. Moving a file there,
+same name, is the whole operation. What belongs there is a closed note
+(`superseded` or `dropped`), or a `fact`, an `incident` or an `idea` about what
+already happened. A `todo`, a `decision` or a `reference` still in force, or an
+`unverified` note, is present work, and putting one there is a `format`
+finding.
+
+The linter still loads it, so every link into it resolves, and checks its
+format and its links. Nothing else: it does not age, its evidence is not
+watched, and it is left out of `INDEX.md` (one line says how many and where),
+`OPEN.md`, `--verify` and `search` without `--all`. The one new finding is
+`depends on history`: a live note that rests on one of these.
+
+The example ships one: Kestrel's dropped mobile app lives in
+`example/Kestrel/history/`.
 
 ## Generated views, never hand-edited
 
@@ -332,7 +357,7 @@ silently vanishing from the view for lack of a root.
 ## Multi-project, multi-language
 
 Any directory **directly under the base** containing a `notes/` folder is a
-project. There is nothing to register: create the folder and it's picked up.
+project, and so is one left with only `history/`. There is nothing to register: create the folder and it's picked up.
 Nesting is not searched, and a handful of names (`tools`, `templates`, `docs`,
 `.git` and friends) never count as projects. Links cross project boundaries,
 so a lesson learned in one project can be a dependency of another.
@@ -425,7 +450,8 @@ enough to pass whole, and `tests/` will tell you if you broke something.
 - **Flat `notes/`, on purpose.** Folders by topic reintroduce "where does this
   go?", and that question is what produces the same fact filed in two places.
 - **Nothing is deleted.** Wrong turns become `dropped` with the reason, so nobody
-  proposes them again in six months believing they're new.
+  proposes them again in six months believing they're new. What is past moves
+  to `history/`: out of the way, still linked.
 - **It checks structure, not truth.** It knows a note hasn't been reviewed in 60
   days. It cannot know whether it's still correct — that's what `How to verify`
   is for, and why a human or an agent still has to do the reading.

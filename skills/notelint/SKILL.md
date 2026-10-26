@@ -16,6 +16,7 @@ A knowledge base is a directory whose subdirectories contain a `notes/` folder:
 ```
 <base>/
   ProjectA/notes/*.md
+  ProjectA/history/*.md     # optional: the notes that no longer describe the present
   ProjectB/notes/*.md
 ```
 
@@ -71,7 +72,9 @@ It answers in a few lines with the notes that contain every word, best first.
 Read only the ones you need (it prints their paths) and answer **without
 running the linter, without reading `INDEX.md` or `OPEN.md` whole, and without
 opening the protocol**. If the person wants to see a note, `open <id>` opens it
-in their program and prints the path as well.
+in their program and prints the path as well. `history/` stays out of a search
+unless you pass `--all`, and its last line says how many were left out: add
+`--all` when the question is about the past, or the present does not answer it.
 
 A full `--report-only` run is for questions about the base as a whole ("what
 is open?" with no project, "are there findings?"). If that report has
@@ -103,7 +106,8 @@ five minutes, stop and say so in one line.
   because the next reader will trust it.
 - **Never delete a note to tidy up.** A wrong turn becomes `dropped` **with the
   reason**, so nobody proposes it again in six months believing it is new. A
-  replaced note becomes `superseded`, and the note replacing it says so.
+  replaced note becomes `superseded`, and the note replacing it says so. To get
+  the past out of the way, move the file to the project's `history/`.
 - **The date you write in `reviewed` is the one the linter prints** in its
   header — the machine's local date — not your own clock, which may run on UTC
   and turn the day over hours early. A future `reviewed` is a format error.

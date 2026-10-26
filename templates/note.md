@@ -84,6 +84,9 @@ verify" has to be the last section, and the linter says so if it is not._
   non-empty `blocks`, clear that first or close it as `superseded` plus a new
   note; and if the outcome carries more than the todo note can hold, also
   `superseded` plus a new note.
+  **What no longer describes the present moves to the project's `history/`**,
+  same file name: a closed note, or a `fact`, `incident` or `idea` about what
+  already happened. It keeps its links and stops aging.
 - **expires** — optional. After this date the claim must be re-verified.
 - **reviewed** — bump it whenever someone confirms the note still holds, even if
   not a word changes. After 60 days the linter flags it (180 for a `reference`,

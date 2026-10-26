@@ -7,8 +7,9 @@ Documentation does not rot because people are lazy. It rots because nothing
 ever checks whether it is still true. notelint checks.
 
 Point it at a directory. Every subdirectory that contains a `notes/` folder is
-a project. Notes are global across projects (links may cross), but each project
-also gets its own index and its own list of open work.
+a project; a `history/` folder beside it holds the notes that are past. Notes
+are global across projects (links may cross), but each project also gets its
+own index and its own list of open work.
 
     python notelint.py                 # lint the current directory, write indexes
     python notelint.py path/to/base    # lint somewhere else
@@ -55,6 +56,14 @@ NEVER_A_PROJECT = {"templates", "tools", "docs", ".git", ".github", "node_module
 # Regenerable junk: not material that anyone should have to claim with a note.
 GENERATED = {"__pycache__", ".pytest_cache", ".mypy_cache", "node_modules",
              "target", ".venv", "venv"}
+
+# A project keeps its notes in notes/. Beside it, history/ holds the ones that
+# no longer describe the present: closed notes, and facts, incidents and ideas
+# about what already happened. They are loaded, so links into them still
+# resolve, but they do not age, their evidence is not watched, and they stay
+# out of the views and out of search unless asked for. Same id, same file:
+# moving a note there is the whole operation.
+NOTES, HISTORY = "notes", "history"
 
 # ---------------------------------------------------------------------------
 # Vocabulary. The note format is the same in every language; only the field
@@ -129,10 +138,12 @@ def detect_lang(base):
 
 
 def projects(base):
+    """Directories with notes/, or with only history/ left: a project whose
+    last note went to history is still loaded, or links into it would break."""
     out = []
     for d in sorted(base.iterdir()):
-        if (d.is_dir() and d.name not in NEVER_A_PROJECT
-                and not d.name.startswith(".") and (d / "notes").is_dir()):
+        if (d.is_dir() and d.name not in NEVER_A_PROJECT and not d.name.startswith(".")
+                and ((d / NOTES).is_dir() or (d / HISTORY).is_dir())):
             out.append(d)
     return out
 
@@ -211,13 +222,16 @@ def load(folders, V):
     Two projects can each hold a `decisions.md`, and that has to keep
     working: both notes are loaded and checked. What a clash costs is the
     bare name as a link target - it no longer points at one note - so those
-    are keyed `Project/id` and listed in `ambiguous`.
+    are keyed `Project/id` (`Project/history/id` for one in history) and
+    listed in `ambiguous`.
     """
     seen = {}
     for c in folders:
-        for p in sorted((c / "notes").glob("*.md")):
-            n = parse(p, c, V)
-            seen.setdefault(n["id"], []).append(n)
+        for sub in (NOTES, HISTORY):
+            for p in sorted((c / sub).glob("*.md")):
+                n = parse(p, c, V)
+                n["history"] = sub == HISTORY
+                seen.setdefault(n["id"], []).append(n)
 
     notes, clashes, ambiguous = {}, [], set()
     for i in sorted(seen):
@@ -226,12 +240,17 @@ def load(folders, V):
             notes[i] = group[0]
             continue
         ambiguous.add(i)
-        first = group[0]["folder"].name
+        first = place(group[0])
         for other in group[1:]:
-            clashes.append((i, first, other["folder"].name))
+            clashes.append((i, first, place(other)))
         for n in group:
-            notes[n["folder"].name + "/" + i] = n
+            notes[place(n) + "/" + i] = n
     return notes, clashes, ambiguous
+
+
+def place(n):
+    """Where a note lives, for a person to read: `Alpha`, or `Alpha/history`."""
+    return n["folder"].name + ("/" + HISTORY if n["history"] else "")
 
 
 def keywords(t):
@@ -430,7 +449,7 @@ def print_verifications(notes, folders, V, days):
     names = {c.name for c in folders}
     which = [n for n in notes.values()
              if n["folder"].name in names and n["status"] == CURRENT
-             and n["type"] != IDEA]
+             and n["type"] != IDEA and not n["history"]]
     if days is not None:
         which = [n for n in which if (days_unreviewed(n) or 0) > days]
     pos = topo_order(notes, V)
@@ -460,7 +479,8 @@ def oldest_block(notes, V, how_many=8):
     CURRENT = V["statuses"][0]
     IDEA = V["types"][3]
     alive = [n for n in notes.values()
-             if n["status"] == CURRENT and n["type"] != IDEA and as_date(n["reviewed"])]
+             if n["status"] == CURRENT and n["type"] != IDEA and not n["history"]
+             and as_date(n["reviewed"])]
     if not alive:
         return []
     alive.sort(key=lambda n: (as_date(n["reviewed"]), n["id"]))
@@ -503,7 +523,7 @@ def check(notes, clashes, base, V, ambiguous=()):
     out = [("inbox", V["inbox"], line) for line in inbox(base, V)]
     CURRENT, SUPERSEDED, DROPPED, UNVERIFIED = V["statuses"]
     DEPENDS, SUPERSEDES, BLOCKS, RELATED = V["edges"]
-    IDEA = V["types"][3]
+    FACT, IDEA, INCIDENT = V["types"][1], V["types"][3], V["types"][4]
     ids = set(notes)
     use_mtime = not under_git(base)
 
@@ -543,6 +563,17 @@ def check(notes, clashes, base, V, ambiguous=()):
                             "[[" + d + "]] names more than one note; rename one"))
             elif d not in ids:
                 out.append(("broken link", i, "[[" + d + "]] does not exist"))
+
+        # 1b. history: its format and its links are checked, and that it belongs
+        #     there; nothing else. It does not age and its evidence is not
+        #     watched, because the past is not re-verified.
+        if n["history"]:
+            if n["status"] not in (SUPERSEDED, DROPPED) and not (
+                    n["status"] == CURRENT and n["type"] in (FACT, INCIDENT, IDEA)):
+                out.append(("format", i, HISTORY + "/ holds closed notes, and facts, incidents"
+                            " and ideas about the past; this is " + n["status"] + " "
+                            + n["type"] + ": move it back to " + NOTES + "/"))
+            continue
 
         # 2. evidence that no longer exists on disk, or that changed after the
         #    note was last confirmed: what it says may no longer match. A line
@@ -606,7 +637,7 @@ def check(notes, clashes, base, V, ambiguous=()):
     #    at what was dropped, that is why it is kept. Towards a superseded note
     #    it is not: link to whatever superseded it.
     for i, n in sorted(notes.items()):
-        if n["status"] in (SUPERSEDED, DROPPED):
+        if n["status"] in (SUPERSEDED, DROPPED) or n["history"]:
             continue
         for e in V["edges"]:
             if e == SUPERSEDES:
@@ -618,6 +649,19 @@ def check(notes, clashes, base, V, ambiguous=()):
                 if e == RELATED and o["status"] == DROPPED:
                     continue
                 out.append(("zombie", i, e + ": " + d + " points at a " + o["status"] + " note"))
+
+    # 4a. resting on history: a live note that depends on, or blocks, a note in
+    #     history that is still current. Either that note is not past, or the
+    #     link is `related`. (Towards a closed one, `zombie` already fires.)
+    for i, n in sorted(notes.items()):
+        if n["status"] in (SUPERSEDED, DROPPED) or n["history"]:
+            continue
+        for e in (DEPENDS, BLOCKS):
+            for d in n["links"][e]:
+                o = notes.get(d)
+                if o and o["history"] and o["status"] not in (SUPERSEDED, DROPPED):
+                    out.append(("depends on history", i, e + ": " + d + " is in " + HISTORY
+                                + "/: move it back to " + NOTES + "/, or the link is " + RELATED))
 
     # 4b. supersedes: only a closed note can be superseded, and every
     #     superseded note has a successor that says so
@@ -658,7 +702,7 @@ def check(notes, clashes, base, V, ambiguous=()):
     # 6. propagation: B was reviewed after A, and A said it depends on B
     for i, n in sorted(notes.items()):
         ra = as_date(n["reviewed"])
-        if not ra or n["status"] != CURRENT:
+        if not ra or n["status"] != CURRENT or n["history"]:
             continue
         for d in n["links"][DEPENDS]:
             o = notes.get(d)
@@ -672,7 +716,8 @@ def check(notes, clashes, base, V, ambiguous=()):
     # 6b. hidden todo: the ⏳ marker inside a note that is not a todo never
     #     reaches OPEN.md, so the work drops out of sight.
     for i, n in sorted(notes.items()):
-        if n["type"] != TODO and n["status"] == CURRENT and PENDING_MARK in n["body"]:
+        if (n["type"] != TODO and n["status"] == CURRENT and not n["history"]
+                and PENDING_MARK in n["body"]):
             out.append(("hidden todo", i, "carries " + PENDING_MARK + " but its type is '"
                         + n["type"] + "': it never shows in " + V["open"]))
 
@@ -685,7 +730,7 @@ def check(notes, clashes, base, V, ambiguous=()):
     #     and only vN with as many digits as N: the v2 of a protocol is not a build.
     installed = {}
     for i, n in sorted(notes.items()):
-        if not n["installed"] or n["status"] != CURRENT:
+        if not n["installed"] or n["status"] != CURRENT or n["history"]:
             continue
         m = re.fullmatch(r"v?(\d+)", n["installed"].strip().lower())
         if m:
@@ -694,7 +739,8 @@ def check(notes, clashes, base, V, ambiguous=()):
             out.append(("format", i, "'" + F["installed"] + "' takes a number or vN: "
                         + n["installed"]))
     for i, n in sorted(notes.items()):
-        if n["folder"] not in installed or n["type"] != TODO or n["status"] != CURRENT:
+        if (n["folder"] not in installed or n["type"] != TODO or n["status"] != CURRENT
+                or n["history"]):
             continue
         v, source = installed[n["folder"]]
         for where, text, pick in (("the name", n["id"], min),
@@ -706,11 +752,12 @@ def check(notes, clashes, base, V, ambiguous=()):
                             + " and the installed one is v" + str(v) + " (" + source + "): "
                             + "fix it, and search the other notes for v" + old))
 
-    # 7. unclaimed material: something is in the project and no note claims it
+    # 7. unclaimed material: something is in the project and no note claims it.
+    #    Notes in history still claim what they cite.
     for c in {n["folder"] for n in notes.values()}:
         claimed, cited = claimed_paths([n for n in notes.values() if n["folder"] == c], c)
         for entry in sorted(c.iterdir()):
-            if (entry.name in ("notes", V["index"], V["open"])
+            if (entry.name in (NOTES, HISTORY, V["index"], V["open"])
                     or entry.name in GENERATED or entry.name.startswith(".")):
                 continue
             children = sorted(entry.iterdir()) if entry.is_dir() else []
@@ -725,7 +772,7 @@ def check(notes, clashes, base, V, ambiguous=()):
 
     # 8. probable duplicates, within one project
     live = [(i, keywords(n["title"]), n["folder"].name)
-            for i, n in notes.items() if n["status"] == CURRENT]
+            for i, n in notes.items() if n["status"] == CURRENT and not n["history"]]
     for x in range(len(live)):
         for y in range(x + 1, len(live)):
             a, b = live[x], live[y]
@@ -738,9 +785,9 @@ def check(notes, clashes, base, V, ambiguous=()):
 
     # 9. size. One claim fits in a title and a page; past the caps, the title is
     #    doing the body's job, or the note holds two claims. Closed notes are
-    #    left alone: nobody is meant to keep reading them.
+    #    left alone, and so is history: nobody is meant to keep reading them.
     for i, n in sorted(notes.items()):
-        if n["status"] in (SUPERSEDED, DROPPED):
+        if n["status"] in (SUPERSEDED, DROPPED) or n["history"]:
             continue
         if len(n["title"]) > MAX_TITLE:
             out.append(("long title", i, str(len(n["title"])) + " characters (limit "
@@ -754,7 +801,7 @@ def check(notes, clashes, base, V, ambiguous=()):
 
 ORDER = ["inbox", "duplicate id", "format", "wrong project", "broken link", "ambiguous link",
          "dead evidence", "evidence changed", "touched unreviewed",
-         "expired", "unreviewed", "stale unverified", "zombie",
+         "expired", "unreviewed", "stale unverified", "zombie", "depends on history",
          "supersedes a live note", "no successor", "unblocked", "permanent block", "propagation", "hidden todo", "past version", "no verification",
          "long title", "long note", "unclaimed", "duplicate?"]
 
@@ -771,18 +818,34 @@ def index_block(group, prefix, V):
         out += ["### " + t, ""]
         for n in rows:
             mark = "" if n["status"] == V["statuses"][0] else " `" + n["status"] + "`"
-            out.append("- [" + n["title"] + "](" + prefix + "notes/" + n["id"] + ".md)" + mark)
+            out.append("- [" + n["title"] + "](" + prefix + in_project(n) + ")" + mark)
         out.append("")
     return out
+
+
+def history_line(hist, prefix):
+    """The one mention of history in an index: how many, and where."""
+    if not hist:
+        return []
+    one = len(hist) == 1
+    return ["_In `" + prefix + HISTORY + "/`: " + str(len(hist))
+            + (" note that no longer describes" if one else " notes that no longer describe")
+            + " the present. " + ("It stays" if one else "They stay")
+            + " out of this index, and out of `search` unless you pass `--all`._", ""]
+
+
+def in_project(n):
+    """A note's file relative to its project: notes/x.md or history/x.md."""
+    return n["path"].parent.name + "/" + n["id"] + ".md"
 
 
 def link_to(n, folder_ref):
     """Path to a note's file, relative to wherever the view is written."""
     if folder_ref is None:                      # OPEN.md at the base
-        return n["folder"].name + "/notes/" + n["id"] + ".md"
+        return n["folder"].name + "/" + in_project(n)
     if n["folder"] == folder_ref:               # OPEN.md inside the project
-        return "notes/" + n["id"] + ".md"
-    return "../" + n["folder"].name + "/notes/" + n["id"] + ".md"
+        return in_project(n)
+    return "../" + n["folder"].name + "/" + in_project(n)
 
 
 def blocking_graph(everything, V):
@@ -791,7 +854,8 @@ def blocking_graph(everything, V):
     children, blocked = {}, set()
     for i, n in everything.items():
         # An unverified blocker has not closed; it keeps holding the chain.
-        if n["status"] not in (CURRENT, UNVERIFIED):
+        # History holds no open work, so it draws no chain.
+        if n["status"] not in (CURRENT, UNVERIFIED) or n["history"]:
             continue
         targets = sorted(d for d in n["links"][BLOCKS] if d in everything)
         if targets:
@@ -898,13 +962,16 @@ def write_views(notes, folders, base, V, force=False):
           "Generated on " + str(TODAY) + ". **Do not edit by hand** - edit the note's status.",
           ""]
     for c in folders:
-        group = [n for n in notes.values() if n["folder"] == c]
+        group = [n for n in notes.values() if n["folder"] == c and not n["history"]]
+        hist = [n for n in notes.values() if n["folder"] == c and n["history"]]
         out += ["## " + c.name + "  (" + str(len(group)) + " notes)", ""]
+        out += history_line(hist, c.name + "/")
         out += index_block(group, c.name + "/", V)
         op += ["# " + c.name, ""] + open_block(group, notes, None, V) + [""]
 
         pi = ["# " + c.name + " - index", "",
               "Generated on " + str(TODAY) + ". **Do not edit by hand.**", ""] + HOWTO
+        pi += history_line(hist, "")
         pi += index_block(group, "", V)
         write_view(c / V["index"], "\n".join(pi) + "\n", force)
         po = ["# " + c.name + " - open", "",
@@ -946,8 +1013,9 @@ def matches(t, text):
 
 def search(notes, words, V, project=None, type_=None, status=None, everything=False):
     """The notes that contain EVERY term, best first: hits in the title, then
-    current notes, then todos, then the most recently reviewed. Closed notes
-    are left out unless `everything` is set or a status asks for them."""
+    current notes, then todos, then the most recently reviewed, and history
+    last. Closed notes are left out unless `everything` is set or a status asks
+    for them; history, unless `everything` is set."""
     CURRENT, SUPERSEDED, DROPPED = V["statuses"][:3]
     TODO = V["types"][2]
     ts = terms(words)
@@ -961,32 +1029,37 @@ def search(notes, words, V, project=None, type_=None, status=None, everything=Fa
             continue
         if not status and not everything and n["status"] in (SUPERSEDED, DROPPED):
             continue
+        if n["history"] and not everything:
+            continue
         title = fold(n["title"] + " " + n["id"].replace("-", " "))
         body = fold(n["body"])        # code included: `POLL_INTERVAL` is what gets searched
         if any(not matches(t, title) and not matches(t, body) for t in ts):
             continue
         in_title = sum(1 for t in ts if matches(t, title))
         d = days_unreviewed(n)
-        key = (-in_title, n["status"] != CURRENT, n["type"] != TODO,
+        key = (n["history"], -in_title, n["status"] != CURRENT, n["type"] != TODO,
                9999 if d is None else d, n["id"])
         hits.append((key, n))
     hits.sort(key=lambda x: x[0])
     return [n for _, n in hits]
 
 
-def print_search(hits, words, filters, base, most=15):
+def print_search(hits, words, filters, base, most=15, hidden=0):
     what = " ".join(words) if words else "(no words)"
     label = " · ".join([what] + [k + "=" + v for k, v in filters if v])
     print("")
     print("  " + str(len(hits)) + " note(s) · " + label)
     for n in hits[:most]:
         d = days_unreviewed(n)
+        # The age of a note in history says nothing: the past is not reviewed.
+        age_txt = HISTORY if n["history"] else ("" if d is None else str(d) + "d")
         print("  " + n["type"].ljust(10) + " " + n["status"].ljust(10)
-              + ("" if d is None else str(d) + "d").rjust(6) + "   "
-              + n["path"].relative_to(base).as_posix())
-        print(" " * 33 + n["title"])
+              + age_txt.rjust(8) + "   " + n["path"].relative_to(base).as_posix())
+        print(" " * 35 + n["title"])
     if len(hits) > most:
         print("  ... and " + str(len(hits) - most) + " more: narrow the words or the filters.")
+    if hidden:
+        print("  + " + str(hidden) + " in history or closed: --all shows them.")
     print("")
 
 
@@ -1047,7 +1120,7 @@ def query(cmd, argv):
         ap.add_argument("--type", dest="type_", metavar="TYPE", help="only this type")
         ap.add_argument("--status", help="only this status")
         ap.add_argument("--all", action="store_true",
-                        help="include superseded and dropped notes")
+                        help="include superseded and dropped notes, and history")
     else:
         ap.description = ("Open a note with the system's program, or with Obsidian or "
                           "VS Code, and print its path.")
@@ -1084,8 +1157,12 @@ def query(cmd, argv):
         print("search needs words or a filter (--project, --type, --status)")
         return 2
     hits = search(notes, a.words, V, a.project, a.type_, a.status, a.all)
+    # What --all would add, so that the past is known to exist without opening it.
+    hidden = 0 if a.all else len(search(notes, a.words, V, a.project, a.type_,
+                                        a.status, True)) - len(hits)
     print_search(hits, a.words, [("project", a.project), ("type", a.type_),
-                                 ("status", a.status), ("all", "yes" if a.all else "")], base)
+                                 ("status", a.status), ("all", "yes" if a.all else "")],
+                 base, hidden=hidden)
     return 0 if hits else 1
 
 
@@ -1147,17 +1224,22 @@ def main(argv=None):
                 | {i for i, p, q in clashes if p in names or q in names})
         findings = [f for f in findings if f[1] in mine]
 
+    past = sum(1 for n in notes.values() if n["history"])
     print("")
-    print("  notelint - " + str(len(notes)) + " notes in "
-          + str(len(folders)) + " project(s)   (" + str(TODAY) + ")")
+    print("  notelint - " + str(len(notes) - past) + " notes in "
+          + str(len(folders)) + " project(s)"
+          + (", " + str(past) + " in history" if past else "")
+          + "   (" + str(TODAY) + ")")
     print("  " + "-" * 66)
     for c in folders:
-        g = [n for n in notes.values() if n["folder"] == c]
+        g = [n for n in notes.values() if n["folder"] == c and not n["history"]]
         todo = sum(1 for n in g if n["type"] == V["types"][2]
                    and n["status"] == V["statuses"][0])
         doubt = sum(1 for n in g if n["status"] == V["statuses"][3])
+        gone = sum(1 for n in notes.values() if n["folder"] == c and n["history"])
         print("  " + c.name.ljust(20) + str(len(g)).rjust(4) + " notes   "
-              + str(todo).rjust(3) + " open   " + str(doubt).rjust(3) + " unverified")
+              + str(todo).rjust(3) + " open   " + str(doubt).rjust(3) + " unverified"
+              + ("   " + str(gone).rjust(3) + " in history" if past else ""))
     print("  " + "-" * 66)
 
     if not findings:

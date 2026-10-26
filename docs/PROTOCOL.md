@@ -105,6 +105,15 @@ there.** Unexplained material is material nobody dares delete in six months.
    `unverified` — it keeps blocking whatever it blocked, and checking it is the
    first job.
 
+   What no longer describes the present **moves to the project's `history/`**,
+   with the same file name: closed notes, and facts, incidents or ideas about
+   what already happened. Never a `todo`, a `decision` or `reference` still in
+   force, or an `unverified` note: those are present work, and the linter says
+   so. There the note keeps its links, stops aging and drops out of the index
+   and of `search` unless asked for. If a live note `depends-on` it, the linter
+   reports `DEPENDS ON HISTORY`: either it was not past, or that link is
+   `related`.
+
 6. **Touch `reviewed`** on every note you confirmed, even when not a word
    changed. That field is the whole difference between "still true" and "nobody
    has looked at this since July".
@@ -182,6 +191,7 @@ modification times can be trusted.
 It finds broken links, evidence that vanished or changed, expired and
 unreviewed notes, doubts left unresolved, zombies, blocks that can never lift,
 pending propagation, todos named after a past version, notes without a way to
-verify them, notes grown past one claim, and unclaimed material. **It does not know whether a note is true,
+verify them, notes grown past one claim, live notes resting on history, and
+unclaimed material. **It does not know whether a note is true,
 and it does not write notes.** That stays human — or agent — work. What the tool
 guarantees is that the mess cannot be left in silence.

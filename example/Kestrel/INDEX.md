@@ -1,6 +1,6 @@
 # Kestrel - index
 
-Generated on 2026-09-05. **Do not edit by hand.**
+Generated on 2026-10-26. **Do not edit by hand.**
 
 ## How to use this
 
@@ -9,9 +9,10 @@ Generated on 2026-09-05. **Do not edit by hand.**
 - Before trusting a current note, read its **How to verify** section.
 - `OPEN.md` is the work list; this is the content list.
 
+_In `history/`: 1 note that no longer describes the present. It stays out of this index, and out of `search` unless you pass `--all`._
+
 ### decision
 
-- [Build a native mobile app](notes/drop-native-mobile-app.md) `dropped`
 - [SQLite, not Postgres](notes/sqlite-over-postgres.md)
 
 ### fact
