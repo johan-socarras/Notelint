@@ -75,6 +75,11 @@ there.** Unexplained material is material nobody dares delete in six months.
    in `evidence:`: between backticks it could be a command, and is not read as
    a path.
 
+   Source code cited in `evidence:` ends its line with `(existence only)`. It
+   changes with every build, so the linter only checks that it is still there,
+   instead of reporting `EVIDENCE CHANGED` each time. Nothing else gets the mark:
+   a document changing under a note is what that finding exists for.
+
    One limit worth knowing: the linter only looks at the **first two levels** of
    each project. That is deliberate — walking an entire source tree would bury
    the report in noise — but it means "it did not appear under `UNCLAIMED`" is

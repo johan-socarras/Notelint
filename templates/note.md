@@ -95,7 +95,10 @@ verify" has to be the last section, and the linter says so if it is not._
   `UNCLAIMED`, cite its path here (or between backticks in the body); naming it
   is not enough. The linter checks that **paths** exist on disk, and reports
   one that changed after the note was last reviewed; it **does not check
-  URLs** — any address passes, a dead one included.
+  URLs** — any address passes, a dead one included. A line ending in
+  `(existence only)` is only checked for existence: that is the mark for source
+  code, which changes with every build. Documents, captures and anything under
+  `evidence/` do not get it.
 - **⏳** in the body marks a loose task in a note that is not a `todo`. The
   linter reports it, because written that way it never reaches `OPEN.md` and the
   work drops out of sight. If there is a task, it gets a `todo` note of its own.

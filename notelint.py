@@ -84,6 +84,13 @@ VOCAB = {
 # any other type it is work that OPEN.md will never list.
 PENDING_MARK = "⏳"   # ⏳
 
+# An evidence line ending in this mark is only checked for existence. Source
+# code changes with every build, and citing it would otherwise report
+# `evidence changed` with every build until nobody reads the report. The note
+# still ages like any other, which is what gets it re-checked. Either
+# language's mark is understood under either vocabulary.
+EXISTS_ONLY = re.compile(r"\s*\((?:existence only|s[oó]lo que exista)\)\s*$", re.I)
+
 RE_WIKI = re.compile(r"\[\[([^\]|#]+)")
 RE_VERSION = re.compile(r"\bv(\d+)\b")
 RE_CODE = re.compile(r"```.*?```|`[^`\n]*`", re.S)
@@ -238,7 +245,9 @@ def cite_path(item):
 
     A plain hyphen is NOT a delimiter: it is far too common inside real
     file names. To put a comment after a path use " — ", " (" or " §".
+    The existence-only mark goes first, so it may follow a comment.
     """
+    item = EXISTS_ONLY.sub("", item)
     for sep in (" §", " (", " —"):
         item = item.split(sep)[0]
     return item.strip()
@@ -531,11 +540,12 @@ def check(notes, clashes, base, V, ambiguous=()):
                 out.append(("broken link", i, "[[" + d + "]] does not exist"))
 
         # 2. evidence that no longer exists on disk, or that changed after the
-        #    note was last confirmed: what it says may no longer match
+        #    note was last confirmed: what it says may no longer match. A line
+        #    marked existence-only is spared the second half.
         for e in n["evidence"]:
             if not evidence_exists(e, n["folder"], base):
                 out.append(("dead evidence", i, e))
-            elif use_mtime and r and n["status"] == CURRENT:
+            elif use_mtime and r and n["status"] == CURRENT and not EXISTS_ONLY.search(e):
                 p = evidence_path(e, n["folder"], base)
                 mod = modified(p) if p and p.is_file() else None
                 if mod and mod > r:

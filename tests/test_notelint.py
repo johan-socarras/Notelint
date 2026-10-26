@@ -695,6 +695,52 @@ def modification_times_are_ignored_inside_git(base):
 
 
 @case
+def code_marked_existence_only_is_not_reported_when_it_changes(base):
+    week_ago = str(TODAY - datetime.timedelta(days=7))
+    (base / "Alpha" / "src").mkdir(parents=True, exist_ok=True)
+    (base / "Alpha" / "src" / "app.py").write_text("print(1)\n", encoding="utf-8")
+    note(base, "Alpha", "marked", reviewed=week_ago,
+         evidence=["src/app.py (existence only)"])
+    note(base, "Alpha", "unmarked", title="Some unrelated other claim", reviewed=week_ago,
+         evidence=["src/app.py"])
+    found = run(base)
+    assert ("evidence changed", "marked") not in found, \
+        "the mark says the file changing is expected; only its absence matters"
+    assert ("evidence changed", "unmarked") in found, \
+        "and the same file without the mark is still reported"
+    assert not any(c in ("dead evidence", "unclaimed") for c, _ in found), \
+        "the mark is not part of the path: the file is found and claimed"
+
+
+@case
+def a_marked_file_that_is_gone_is_still_dead_evidence(base):
+    note(base, "Alpha", "one", evidence=["src/gone.py (existence only)"])
+    assert ("dead evidence", "one") in run(base), \
+        "existence is exactly what the mark still checks"
+
+
+@case
+def the_spanish_mark_and_a_comment_before_it_are_understood(base):
+    week_ago = str(TODAY - datetime.timedelta(days=7))
+    (base / "Alpha" / "src").mkdir(parents=True, exist_ok=True)
+    (base / "Alpha" / "src" / "app.py").write_text("print(1)\n", encoding="utf-8")
+    d = base / "Alpha" / "notes"
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "una.md").write_text(
+        "---\ntitulo: Una afirmacion\ntipo: hecho\nproyecto: Alpha\n"
+        "estado: vigente\ncreada: 2026-01-01\nrevisada: " + week_ago + "\n"
+        "caduca:\nevidencia:\n  - src/app.py — el bucle (sólo que exista)\n"
+        "  - src/app.py(solo que exista)\nenlaces:\n  depende-de: []\n"
+        "  supera-a: []\n  bloquea: []\n  relacionada: []\n---\n\nCuerpo.\n"
+        "\n## Cómo se comprueba\n\n`ls src`\n",
+        encoding="utf-8")
+    found = run(base, lang="es")
+    assert not any(c in ("evidence changed", "dead evidence", "unclaimed")
+                   for c, _ in found), \
+        "with or without the accent or the space, after a comment or not"
+
+
+@case
 def a_doubt_left_for_weeks_is_reported(base):
     old = str(TODAY - datetime.timedelta(days=notelint.DAYS_UNVERIFIED + 3))
     fresh = str(TODAY - datetime.timedelta(days=notelint.DAYS_UNVERIFIED - 3))

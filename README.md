@@ -166,7 +166,7 @@ linter can act on:
 |---|---|
 | `broken link` | `[[name]]` points at a note that doesn't exist (code spans are ignored) |
 | `dead evidence` | A cited file is gone from disk |
-| `evidence changed` | A cited file was modified after the `current` note citing it was last reviewed — what the note says may no longer match it |
+| `evidence changed` | A cited file was modified after the `current` note citing it was last reviewed — what the note says may no longer match it. A line ending in `(existence only)` is spared, see below |
 | `touched unreviewed` | The note itself was modified after its `reviewed` date: someone edited it without confirming it, by hand or an agent that skipped the bump |
 | `expired` | `expires` has passed and the note still says `current` |
 | `unreviewed` | A `current` note hasn't been confirmed in 60 days — 180 for a `reference`, an `incident`, or a `decision` that declares what it depends on; an `idea` never ages |
@@ -224,6 +224,22 @@ evidence:
 
 A plain hyphen is **not** a delimiter, deliberately: too many real file names
 contain one, and `Q3 Report - final.pdf` has to stay citable as itself.
+
+Source code is the one kind of evidence that is *supposed* to change. Cite
+`src/poller.go` and every build would report `evidence changed` until nobody
+reads the report. End the line with `(existence only)` and the linter checks
+only that the file is still there; the note still ages like any other, and that
+is what gets it re-checked:
+
+```yaml
+evidence:
+  - src/poller.go (existence only)
+  - evidence/bench-2026-08-20.md
+```
+
+Keep the mark for code. A spec, a benchmark or a contract changing under a note
+is exactly what `evidence changed` is for. Spanish notes write it
+`(sólo que exista)`.
 
 One limit to know before it puzzles you: **between backticks in the body, the
 first segment of a path cannot contain a space.** A backticked span may be a
