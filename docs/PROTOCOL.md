@@ -182,6 +182,6 @@ modification times can be trusted.
 It finds broken links, evidence that vanished or changed, expired and
 unreviewed notes, doubts left unresolved, zombies, blocks that can never lift,
 pending propagation, todos named after a past version, notes without a way to
-verify them, and unclaimed material. **It does not know whether a note is true,
+verify them, notes grown past one claim, and unclaimed material. **It does not know whether a note is true,
 and it does not write notes.** That stays human — or agent — work. What the tool
 guarantees is that the mess cannot be left in silence.

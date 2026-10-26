@@ -19,6 +19,7 @@ links:
 ## What it is
 
 Five to thirty lines. If it doesn't fit, it's two notes with a link between them.
+Past 150 lines the linter reports `long note`.
 
 ## Why it matters
 
@@ -57,6 +58,8 @@ verify" has to be the last section, and the linter says so if it is not._
 
 ## Filling in the fields
 
+- **title** — what the note is, in 160 characters at most; past that the linter
+  reports `long title`. The detail goes in the body.
 - **type** — `decision` (something was chosen, and why) · `fact` (something
   checked: measured or observed; if the note explains HOW something is done or
   WHERE it lives, it is a `reference`) · `todo` (not done yet) · `idea` (no

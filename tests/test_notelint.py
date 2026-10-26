@@ -975,6 +975,34 @@ def open_refuses_to_guess_between_several(base):
     assert rc2 == 1
 
 
+# --------------------------------------------------------------------------
+# Size caps: one claim fits in a title and a page.
+# --------------------------------------------------------------------------
+
+
+@case
+def a_title_past_the_cap_is_reported(base):
+    note(base, "Alpha", "long", title="x" * (notelint.MAX_TITLE + 1))
+    note(base, "Alpha", "fits", title="y" * notelint.MAX_TITLE)
+    found = run(base)
+    assert ("long title", "long") in found
+    assert ("long title", "fits") not in found, "the cap itself is allowed"
+
+
+@case
+def a_note_past_the_cap_is_reported_unless_closed(base):
+    many = "\n".join("Line " + str(k) for k in range(notelint.MAX_LINES + 10))
+    note(base, "Alpha", "long", body=many)
+    note(base, "Alpha", "old", title="An old and closed claim", status="dropped",
+         body=many, verify=None)
+    note(base, "Alpha", "short", title="A short and current claim",
+         body="\n".join("Line " + str(k) for k in range(notelint.MAX_LINES - 20)))
+    found = run(base)
+    assert ("long note", "long") in found
+    assert ("long note", "old") not in found, "nobody is meant to keep reading a closed note"
+    assert ("long note", "short") not in found
+
+
 def main():
     passed = failed = 0
     for fn in CASES:

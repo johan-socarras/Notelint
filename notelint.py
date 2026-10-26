@@ -44,6 +44,11 @@ DAYS_UNREVIEWED_LONG = 180
 # A doubt nobody resolves in two weeks is no longer a doubt: it is an abandoned note.
 DAYS_UNVERIFIED = 14
 
+# Size caps. A title past MAX_TITLE characters is carrying the body; a note past
+# MAX_LINES lines is two claims, or one still carrying its past.
+MAX_TITLE = 160
+MAX_LINES = 150
+
 # Directories at the base that are never projects.
 NEVER_A_PROJECT = {"templates", "tools", "docs", ".git", ".github", "node_modules"}
 
@@ -730,6 +735,20 @@ def check(notes, clashes, base, V, ambiguous=()):
             if j >= 0.6:
                 out.append(("duplicate?", a[0],
                             "looks like " + b[0] + " (" + str(int(j * 100)) + "%)"))
+
+    # 9. size. One claim fits in a title and a page; past the caps, the title is
+    #    doing the body's job, or the note holds two claims. Closed notes are
+    #    left alone: nobody is meant to keep reading them.
+    for i, n in sorted(notes.items()):
+        if n["status"] in (SUPERSEDED, DROPPED):
+            continue
+        if len(n["title"]) > MAX_TITLE:
+            out.append(("long title", i, str(len(n["title"])) + " characters (limit "
+                        + str(MAX_TITLE) + "): the title says what it is, the detail goes in the body"))
+        lines = len(n["body"].splitlines())
+        if lines > MAX_LINES:
+            out.append(("long note", i, str(lines) + " lines (limit " + str(MAX_LINES)
+                        + "): it is two notes"))
     return out
 
 
@@ -737,7 +756,7 @@ ORDER = ["inbox", "duplicate id", "format", "wrong project", "broken link", "amb
          "dead evidence", "evidence changed", "touched unreviewed",
          "expired", "unreviewed", "stale unverified", "zombie",
          "supersedes a live note", "no successor", "unblocked", "permanent block", "propagation", "hidden todo", "past version", "no verification",
-         "unclaimed", "duplicate?"]
+         "long title", "long note", "unclaimed", "duplicate?"]
 
 
 # ---------------------------------------------------------------------------

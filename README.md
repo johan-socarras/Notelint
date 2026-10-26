@@ -180,6 +180,8 @@ linter can act on:
 | `hidden todo` | A current note that is not a `todo` carries the ⏳ mark — a task written there never reaches `OPEN.md`. Give it a `todo` note of its own and link to it |
 | `past version` | In a project whose note carries `installed-version: N`, a current `todo` whose file name names an older build `vM`, or whose title names one as the highest. It is what is left when a plan changes and a note is fixed inside but not outside |
 | `no verification` | A current note other than an `idea` has no `How to verify` section, or an empty one. A rule of conduct may title it `How to apply` and say how you notice the rule was broken |
+| `long title` | A title runs past 160 characters: it is doing the body's job. The title says what the note is; the detail goes below |
+| `long note` | A note that is not closed runs past 150 lines: it holds two claims, or one still carrying its past |
 | **`unclaimed`** | A file or folder is in the project and **no note explains why it exists** (build junk like `__pycache__`, `node_modules` and `target` is skipped) |
 | `duplicate?` | Two current notes in one project have near-identical titles |
 | `ambiguous link` | `[[name]]` matches notes in two projects, so it points at neither |
