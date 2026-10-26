@@ -546,10 +546,20 @@ def zero_still_means_act_at_once(base):
 
 
 @case
-def a_space_in_the_first_segment_still_blocks_the_claim(base):
+def evidence_claims_a_top_level_name_with_a_space(base):
     note(base, "Alpha", "one", evidence=["Q3 Report.pdf"])
     (base / "Alpha" / "Q3 Report.pdf").write_text("x", encoding="utf-8")
-    assert any(c == "unclaimed" for c, _ in run(base)),         "documented limit: the guard that stops a backticked command from "         "claiming half the project also costs top-level names with spaces"
+    found = run(base)
+    assert not any(c in ("dead evidence", "unclaimed") for c, _ in found), \
+        "evidence: is one path per line; a space in the name is just part of it"
+
+
+@case
+def a_space_in_the_first_segment_still_blocks_a_claim_from_the_body(base):
+    note(base, "Alpha", "one", body="The numbers come from `Q3 Report.pdf`.")
+    (base / "Alpha" / "Q3 Report.pdf").write_text("x", encoding="utf-8")
+    assert ("unclaimed", "Alpha") in run(base), \
+        "a backticked span may be a shell command: there the guard stays"
 
 
 # --------------------------------------------------------------------------

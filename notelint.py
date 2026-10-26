@@ -303,20 +303,28 @@ def claimed_paths(project_notes, folder):
     Matching on the bare name instead is what made a new directory called
     `legal`, `src` or `tests` never show up: those words were already written
     somewhere in the notes for an unrelated reason.
+
+    The two sources are not filtered alike. A backticked span in the body is
+    prose, and may be a shell command: one whose first segment holds a space
+    is not taken for a path. `evidence:` is one path per line, so there that
+    guard protects nothing, and it used to make a top-level `Q3 Report.pdf`
+    impossible to claim however it was cited.
     """
     raw = []
     for n in project_notes:
-        raw.extend(n["evidence"])
-        raw.extend(RE_BACKTICK.findall(n["body"]))
+        raw.extend((e, True) for e in n["evidence"])
+        raw.extend((b, False) for b in RE_BACKTICK.findall(n["body"]))
 
     out, cited = set(), set()
-    for item in raw:
+    for item, structured in raw:
         if item.startswith("http://") or item.startswith("https://"):
             continue
         # Evidence lines may carry a trailing comment; keep the path part.
         path = cite_path(item)
         path = path.strip().strip("/\\").replace("\\", "/")
-        if not path or path.startswith("-") or " " in path.split("/")[0]:
+        if not path or path.startswith("-"):
+            continue
+        if not structured and " " in path.split("/")[0]:
             continue
         parts = [p for p in path.split("/") if p not in ("", ".")]
         if not parts or ".." in parts:

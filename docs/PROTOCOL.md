@@ -71,7 +71,9 @@ there.** Unexplained material is material nobody dares delete in six months.
    directories above it. Mentioning a bare name in a sentence is not enough —
    that was the earlier rule, and it meant a new directory called `legal`, `src`
    or `tests` never surfaced, because those words were already written somewhere
-   for an unrelated reason.
+   for an unrelated reason. A name with a space at the top of the project goes
+   in `evidence:`: between backticks it could be a command, and is not read as
+   a path.
 
    One limit worth knowing: the linter only looks at the **first two levels** of
    each project. That is deliberate — walking an entire source tree would bury

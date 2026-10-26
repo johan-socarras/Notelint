@@ -225,12 +225,12 @@ evidence:
 A plain hyphen is **not** a delimiter, deliberately: too many real file names
 contain one, and `Q3 Report - final.pdf` has to stay citable as itself.
 
-One limit to know before it puzzles you: **the first segment of the path cannot
-contain a space.** That guard is what stops a shell command written in backticks
-from claiming half the project, and the price is that a file sitting loose at the
-top of a project with spaces in its name can never be claimed - it keeps showing
-up under `unclaimed` however you cite it. Move it into a folder, as above, or
-rename it.
+One limit to know before it puzzles you: **between backticks in the body, the
+first segment of a path cannot contain a space.** A backticked span may be a
+shell command, and that guard is what stops one from claiming half the project.
+So a file sitting loose at the top of a project with a space in its name, like
+`Q3 Report.pdf`, is claimed from `evidence:`, where every line is a path and the
+guard does not apply.
 
 ## Flags
 
