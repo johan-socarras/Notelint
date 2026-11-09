@@ -1,0 +1,233 @@
+<#
+notelint installer - Windows.
+
+    irm https://raw.githubusercontent.com/johan-socarras/notelint/main/install.ps1 | iex
+
+Install somewhere other than ~\knowledge-base:
+
+    & ([scriptblock]::Create((irm https://raw.githubusercontent.com/johan-socarras/notelint/main/install.ps1))) -Base C:\my-brain
+
+It creates a knowledge base that is self-contained: the linter lives inside it,
+so moving the folder moves everything.
+
+It downloads this repository from GitHub into a temporary folder, writes only
+inside the base and in ~\.claude\skills\notelint, and uploads nothing. Read this
+file before running it - that is the whole point of piping to iex only after you
+have looked.
+#>
+[CmdletBinding()]
+param(
+    [string]$Base = (Join-Path $HOME 'knowledge-base'),
+    [string]$Repo = 'johan-socarras/notelint',
+    [string]$Branch = 'main',
+    [string]$Commit = '',
+    [string]$FirstProject = 'Example'
+)
+
+$ErrorActionPreference = 'Stop'
+
+function Write-Step($t) { Write-Host "`n=== $t ===" -ForegroundColor Cyan }
+function Write-Ok($t)   { Write-Host "  OK  " -ForegroundColor Green -NoNewline; Write-Host $t }
+function Write-Warn($t) { Write-Host " WARN " -ForegroundColor Yellow -NoNewline; Write-Host $t }
+function Write-Dim($t)  { Write-Host "      $t" -ForegroundColor DarkGray }
+function Die($t)        { Write-Host " FAIL " -ForegroundColor Red -NoNewline; Write-Host $t; throw "notelint installer: $t" }
+
+Write-Host ""
+Write-Host "  notelint - a linter for a knowledge base that does not rot" -ForegroundColor Cyan
+Write-Host ""
+
+# --------------------------------------------------------------- requirements
+Write-Step "Checking requirements"
+
+$py = $null
+foreach ($c in @('python', 'python3', 'py')) {
+    $cmd = Get-Command $c -ErrorAction SilentlyContinue
+    if (-not $cmd) { continue }
+    $probe = 'import sys; sys.exit(0 if sys.version_info >= (3,8) else 1)'
+    $pre = if ($c -eq 'py') { @('-3') } else { @() }
+    # Do not redirect a native command's stderr while EAP is 'Stop': under
+    # Windows PowerShell 5.1 anything Python writes to stderr on startup
+    # becomes a terminating error, and the candidate was dropped without
+    # saying why.
+    $saved = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try { & $cmd.Source @pre '-c' $probe 2>&1 | Out-Null }
+    catch { Write-Dim ("skipped ${c}: " + $_.Exception.Message) }
+    finally { $ErrorActionPreference = $saved }
+    if ($LASTEXITCODE -eq 0) {
+        # Executable and arguments kept apart, never interpolated into a
+        # string: 'C:\Program Files\Python312\python.exe' split in two.
+        $pyExe = $cmd.Source
+        $pyPre = $pre
+        $py = $pyExe
+        break
+    }
+}
+if (-not $py) {
+    Die "Python 3.8+ is required. Install it from python.org or: winget install Python.Python.3.12"
+}
+Write-Ok ((& $pyExe @pyPre '--version' 2>&1) -join ' ')
+
+# ------------------------------------------------------------------- download
+Write-Step "Downloading notelint"
+
+$tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("notelint-" + [guid]::NewGuid().ToString('N').Substring(0, 8))
+New-Item -ItemType Directory -Path $tmp -Force | Out-Null
+
+try {
+    $zip = Join-Path $tmp 'src.zip'
+    # A commit, when given, wins over the branch: a commit's archive never
+    # changes, while a branch head is served from a cache that can lag a
+    # fresh push by minutes.
+    $ref = if ($Commit) { $Commit } else { "refs/heads/$Branch" }
+    $url = "https://codeload.github.com/$Repo/zip/$ref"
+    $old = $ProgressPreference
+    $ProgressPreference = 'SilentlyContinue'
+    Invoke-WebRequest -Uri $url -OutFile $zip -UseBasicParsing
+    $ProgressPreference = $old
+    # Not Expand-Archive: that lives in a script module, and a stock Windows
+    # runs with ExecutionPolicy Restricted, which refuses to load it. The
+    # .NET class needs no script and works under any policy.
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    [System.IO.Compression.ZipFile]::ExtractToDirectory($zip, $tmp)
+
+    # Take whatever single directory the zip unpacked into. Matching on the name
+    # would break the day the repository is renamed - GitHub names the directory
+    # after the repo.
+    $src = Get-ChildItem -Path $tmp -Directory | Select-Object -First 1
+    if (-not $src) { Die "Unexpected archive layout: nothing unpacked." }
+    if (-not (Test-Path (Join-Path $src.FullName 'notelint.py'))) {
+        Die "Unexpected archive layout: no notelint.py in $($src.FullName)."
+    }
+    Write-Ok "Downloaded"
+
+    # --------------------------------------------------------------- the base
+    Write-Step "Creating the knowledge base"
+
+    if ((Test-Path $Base) -and (Get-ChildItem $Base -Force -ErrorAction SilentlyContinue)) {
+        Write-Warn "$Base already exists and is not empty."
+        Write-Dim "Existing files are left untouched; only missing pieces are added."
+    } else {
+        New-Item -ItemType Directory -Path $Base -Force | Out-Null
+        Write-Ok "Created $Base"
+    }
+
+    New-Item -ItemType Directory -Path (Join-Path $Base 'tools') -Force | Out-Null
+    New-Item -ItemType Directory -Path (Join-Path $Base 'templates') -Force | Out-Null
+
+    $linter = Join-Path $Base 'tools\notelint.py'
+    if (Test-Path $linter) {
+        Write-Dim "kept existing tools\notelint.py"
+    } else {
+        Copy-Item (Join-Path $src.FullName 'notelint.py') $linter
+    }
+    Write-Ok "Linter installed in $Base\tools\"
+
+    $tpl = Join-Path $Base 'templates\note.md'
+    if (Test-Path $tpl) { Write-Dim "kept existing templates\note.md" }
+    else { Copy-Item (Join-Path $src.FullName 'templates\note.md') $tpl }
+
+    $proto = Join-Path $Base 'PROTOCOL.md'
+    if (Test-Path $proto) { Write-Dim "kept existing PROTOCOL.md" }
+    else { Copy-Item (Join-Path $src.FullName 'docs\PROTOCOL.md') $proto }
+    Write-Ok "Protocol and note template in place"
+
+    # ----------------------------------------------------------- first project
+    $projNotes = Join-Path $Base "$FirstProject\notes"
+    if (Test-Path $projNotes) {
+        Write-Dim "project '$FirstProject' already exists"
+    } else {
+        New-Item -ItemType Directory -Path $projNotes -Force | Out-Null
+        $today = Get-Date -Format 'yyyy-MM-dd'
+        $note = @"
+---
+title: What $FirstProject is
+type: fact
+project: $FirstProject
+status: current
+created: $today
+reviewed: $today
+expires:
+evidence:
+links:
+  depends-on: []
+  supersedes: []
+  blocks: []
+  related: []
+---
+
+## What this is
+
+Replace this with one paragraph saying what $FirstProject actually is, for
+someone who has never seen it. Not what you plan to do with it - what it is
+today.
+
+## How to verify
+
+Say the command, the path or the screen that proves the sentence above is still
+true. If you cannot name one, this note is not ``current``: set status to
+``unverified`` and make checking it the first job.
+
+A verification method that does not work is worse than none, because the next
+reader trusts it.
+"@
+        # Set-Content -Encoding UTF8 writes a BOM under Windows PowerShell
+        # 5.1, and the linter then rejected the very note this just wrote.
+        # UTF8Encoding($false) does not.
+        $seed = Join-Path (Convert-Path $projNotes) 'what-this-project-is.md'
+        [System.IO.File]::WriteAllText($seed, $note, (New-Object System.Text.UTF8Encoding $false))
+        Write-Ok "First project created: $FirstProject"
+    }
+
+    # ------------------------------------------------------------- agent skill
+    Write-Step "Claude Code skill"
+
+    $skillSrc = Join-Path $src.FullName 'skills\notelint'
+    $skillDst = Join-Path $HOME '.claude\skills\notelint'
+    if (Test-Path $skillSrc) {
+        if (Test-Path $skillDst) {
+            Write-Dim "skill already installed at $skillDst"
+        } else {
+            New-Item -ItemType Directory -Path (Split-Path $skillDst) -Force | Out-Null
+            Copy-Item $skillSrc $skillDst -Recurse
+            Write-Ok "Skill installed at $skillDst"
+            Write-Dim "Claude Code will pick it up on the next session."
+        }
+    } else {
+        Write-Warn "No skill directory in the archive; skipped."
+    }
+
+    # -------------------------------------------------------------- first run
+    Write-Step "First run"
+
+    Push-Location $Base
+    try {
+        & $pyExe @pyPre 'tools\notelint.py' '.'
+        $rc = $LASTEXITCODE
+    } finally {
+        Pop-Location
+    }
+
+    Write-Host ""
+    if ($rc -eq 1) {
+        Write-Dim "Exit code 1 means it found something - that is the tool working."
+    }
+
+    # ------------------------------------------------------------- what next
+    Write-Step "Done"
+    Write-Host ""
+    Write-Host "  Your base:  $Base"
+    Write-Host ""
+    Write-Host "  Lint it, and regenerate INDEX.md / OPEN.md:"
+    Write-Host "    cd `"$Base`"; & `"$pyExe`" tools\notelint.py ." -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "  Just look, change nothing:"
+    Write-Host "    cd `"$Base`"; & `"$pyExe`" tools\notelint.py . --report-only" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "  Next: write your first real note. Copy templates\note.md into"
+    Write-Host "  $FirstProject\notes\ and fill it in. Then run the linter again."
+    Write-Host ""
+}
+finally {
+    Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue
+}
