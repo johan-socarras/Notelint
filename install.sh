@@ -204,7 +204,7 @@ set -e
 
 say ""
 if [ "$RC" -eq 1 ]; then
-    dim "Exit code 1 means it found something - that is the tool working."
+    dim "Exit code 1 means it found an error - that is the tool working."
 fi
 
 # ------------------------------------------------------------------- what next
@@ -218,6 +218,7 @@ say ""
 say "  Just look, change nothing:"
 say "    ${BLUE}cd \"$BASE\" && \"$PY\" tools/notelint.py . --report-only${OFF}"
 say ""
-say "  Next: write your first real note. Copy templates/note.md into"
-say "  $FIRST/notes/ and fill it in. Then run the linter again."
+say "  Next: write your first real note, from the base:"
+say "    ${BLUE}\"$PY\" tools/notelint.py new \"$FIRST\" fact my-first-claim --title \"One claim\"${OFF}"
+say "  Fill in the file it prints, then run the linter again."
 say ""

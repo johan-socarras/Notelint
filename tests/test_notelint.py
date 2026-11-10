@@ -331,10 +331,11 @@ def spanish_vocabulary_is_understood(base):
 
 
 @case
-def the_shipped_example_reports_its_four_planted_faults(base):
+def the_shipped_example_reports_its_five_planted_faults(base):
     repo = Path(__file__).resolve().parent.parent
     found = run(repo / "example")
     for expected in [("dead evidence", "mystery-benchmark"),
+                     ("format", "sqlite-over-postgres"),
                      ("propagation", "feed-poll-interval"),
                      ("hidden todo", "retry-storm-incident"),
                      ("unclaimed", "Kestrel")]:
@@ -1155,6 +1156,302 @@ def version_prints_and_exits_zero(base):
     else:
         raise AssertionError("--version has to print the version and stop")
     assert buf.getvalue().strip() == "notelint " + notelint.__version__
+
+
+# --------------------------------------------------------------------------
+# Two levels: errors fail the run, reviews are a queue.
+# --------------------------------------------------------------------------
+
+
+@case
+def every_category_belongs_to_exactly_one_level(base):
+    assert not set(notelint.ERRORS) & set(notelint.REVIEWS), "a category in both levels"
+    src = Path(notelint.__file__).read_text(encoding="utf-8")
+    import re
+    emitted = set(re.findall(r'out\.append\(\("([a-z ?]+)"', src))
+    emitted |= {"inbox", "duplicate id"}
+    missing = emitted - set(notelint.ERRORS) - set(notelint.REVIEWS)
+    assert not missing, "categories with no level: " + ", ".join(sorted(missing))
+
+
+@case
+def reviews_alone_do_not_fail_the_run(base):
+    old = str(TODAY - datetime.timedelta(days=notelint.DAYS_UNREVIEWED + 5))
+    note(base, "Alpha", "one", reviewed=old)
+    rc, out = quiet(notelint.main, [str(base), "--report-only"])
+    assert rc == 0, "an unreviewed note is a queue, not a failure"
+    assert "REVIEWS (" in out and "ERRORS" not in out
+
+
+@case
+def strict_fails_on_reviews_too(base):
+    old = str(TODAY - datetime.timedelta(days=notelint.DAYS_UNREVIEWED + 5))
+    note(base, "Alpha", "one", reviewed=old)
+    rc, _ = quiet(notelint.main, [str(base), "--report-only", "--strict"])
+    assert rc == 1
+
+
+@case
+def an_error_fails_the_run_and_prints_first(base):
+    old = str(TODAY - datetime.timedelta(days=notelint.DAYS_UNREVIEWED + 5))
+    note(base, "Alpha", "one", reviewed=old, depends="ghost")
+    rc, out = quiet(notelint.main, [str(base), "--report-only"])
+    assert rc == 1
+    assert out.index("ERRORS (") < out.index("BROKEN LINK") < out.index("REVIEWS (") \
+        < out.index("UNREVIEWED"), "errors first, each under its own level"
+    assert "errors: 1 · reviews: " in out
+    rc, _ = quiet(notelint.main, [str(base), "--report-only", "--exit-zero"])
+    assert rc == 0
+
+
+# --------------------------------------------------------------------------
+# todo/ and ideas/ beside notes/, and HISTORY.md.
+# --------------------------------------------------------------------------
+
+
+@case
+def todo_and_ideas_are_read_like_notes(base):
+    note(base, "Alpha", "work", title="Ship the importer", type="todo", where="todo")
+    note(base, "Alpha", "maybe", title="A plugin system some day", type="idea",
+         where="ideas", depends="work")
+    note(base, "Alpha", "fact", title="What it is today", related="maybe")
+    assert run(base) == set(), "a todo in todo/ and an idea in ideas/ are ordinary notes"
+    text = open_view(base)
+    assert "todo/work.md" in text, "OPEN.md links the todo where it lives"
+
+
+@case
+def a_project_with_only_todo_is_a_project(base):
+    note(base, "Alpha", "work", title="Start the project", type="todo", where="todo")
+    assert [c.name for c in notelint.projects(base)] == ["Alpha"]
+
+
+@case
+def the_same_id_in_notes_and_todo_is_a_clash(base):
+    note(base, "Alpha", "one")
+    note(base, "Alpha", "one", title="Another claim", type="todo", where="todo")
+    notes, V = loaded(base)
+    assert len([n for n in notes.values() if n["id"] == "one"]) == 2, "both survive"
+    assert ("duplicate id", "one") in run(base)
+
+
+@case
+def history_md_lists_the_past_most_recent_first(base):
+    note(base, "Alpha", "live", title="Still true")
+    note(base, "Alpha", "older", title="Gone long ago", status="dropped",
+         reviewed=str(TODAY - datetime.timedelta(days=30)), where="history")
+    note(base, "Alpha", "newer", title="Gone last week", status="dropped",
+         reviewed=str(TODAY - datetime.timedelta(days=7)), where="history")
+    quiet(notelint.main, [str(base)])
+    text = (base / "Alpha" / "HISTORY.md").read_text(encoding="utf-8")
+    assert "**Do not edit by hand" in text
+    assert text.index("Gone last week") < text.index("Gone long ago")
+    assert ("unclaimed", "Alpha") not in run(base), "HISTORY.md is a view, not material"
+
+
+@case
+def no_history_md_without_history(base):
+    note(base, "Alpha", "live", title="Still true")
+    quiet(notelint.main, [str(base)])
+    assert not (base / "Alpha" / "HISTORY.md").exists()
+
+
+# --------------------------------------------------------------------------
+# Absolute paths into the base.
+# --------------------------------------------------------------------------
+
+
+@case
+def an_absolute_path_into_the_base_is_a_format_error(base):
+    (base / "Alpha" / "evidence").mkdir(parents=True)
+    target = base / "Alpha" / "evidence" / "x.md"
+    target.write_text("x", encoding="utf-8")
+    note(base, "Alpha", "one", evidence=[str(target)])
+    found = run(base)
+    assert ("format", "one") in found
+    assert ("dead evidence", "one") not in found, "one finding for one fault"
+
+
+@case
+def an_absolute_path_from_another_machine_is_recognised(base):
+    (base / "Alpha" / "evidence").mkdir(parents=True)
+    (base / "Alpha" / "evidence" / "x.md").write_text("x", encoding="utf-8")
+    note(base, "Alpha", "one", evidence=["C:\\Users\\dana\\notes\\Alpha\\evidence\\x.md"])
+    V = EN
+    notes = notelint.load(notelint.projects(base), V)[0]
+    msgs = [d for c, i, d in notelint.check(notes, [], base, V) if c == "format"]
+    assert msgs and "`evidence/x.md`" in msgs[0], "it says what to write instead"
+
+
+@case
+def an_absolute_path_outside_the_base_is_left_alone(base):
+    outside = Path(tempfile.mkdtemp(prefix="notelint-outside-"))
+    try:
+        (outside / "y.md").write_text("y", encoding="utf-8")
+        note(base, "Alpha", "one", evidence=[str(outside / "y.md")])
+        assert run(base) == set(), "outside the base, an absolute path is the only way"
+    finally:
+        shutil.rmtree(outside, ignore_errors=True)
+
+
+# --------------------------------------------------------------------------
+# new / review / close, and the fingerprints behind propagation.
+# --------------------------------------------------------------------------
+
+
+def cli(base, *args):
+    return quiet(notelint.main, list(args) + ["--base", str(base)])
+
+
+@case
+def new_files_each_type_where_it_belongs(base):
+    note(base, "Alpha", "seed")
+    for t, i, where in (("todo", "do-it", "todo"), ("idea", "maybe", "ideas"),
+                        ("fact", "it-is", "notes")):
+        rc, out = cli(base, "new", "alpha", t, i, "--title", "A " + t)
+        assert rc == 0, out
+        assert (base / "Alpha" / where / (i + ".md")).is_file(), t + " goes to " + where
+    found = run(base)
+    assert not any(c == "format" for c, _ in found), "the template is valid as written"
+    assert ("no verification", "it-is") in found, "until someone says how to verify it"
+    assert ("no verification", "maybe") not in found
+
+
+@case
+def new_writes_the_spanish_vocabulary(base):
+    d = base / "Alfa" / "notes"
+    d.mkdir(parents=True)
+    (d / "semilla.md").write_text("---\ntitulo: X\ntipo: hecho\nproyecto: Alfa\n"
+                                  "estado: vigente\n---\n", encoding="utf-8")
+    rc, out = cli(base, "new", "Alfa", "pendiente", "hacerlo", "--title", "Hacerlo")
+    assert rc == 0, out
+    text = (base / "Alfa" / "todo" / "hacerlo.md").read_text(encoding="utf-8")
+    assert "estado: vigente" in text and "## Cómo se comprueba" in text
+
+
+@case
+def new_refuses_a_taken_or_malformed_id(base):
+    note(base, "Alpha", "one")
+    assert cli(base, "new", "Alpha", "fact", "one", "--title", "X")[0] == 2
+    assert cli(base, "new", "Alpha", "fact", "Bad Id", "--title", "X")[0] == 2
+    assert cli(base, "new", "Alpha", "nonsense", "fine", "--title", "X")[0] == 2
+    assert cli(base, "new", "Nowhere", "fact", "fine", "--title", "X")[0] == 2
+    assert cli(base, "new", "Alpha", "fact", "fine", "--title", "x" * 200)[0] == 2
+
+
+@case
+def review_dates_today_and_keeps_bom_and_crlf(base):
+    old = str(TODAY - datetime.timedelta(days=90))
+    note(base, "Alpha", "one", reviewed=old)
+    p = base / "Alpha" / "notes" / "one.md"
+    p.write_bytes(b"\xef\xbb\xbf" + p.read_bytes().replace(b"\n", b"\r\n"))
+    rc, out = cli(base, "review", "one")
+    assert rc == 0, out
+    raw = p.read_bytes()
+    assert raw.startswith(b"\xef\xbb\xbf") and b"\r\n" in raw and b"\n" not in raw.replace(b"\r\n", b"")
+    assert ("reviewed: " + str(TODAY)).encode() in raw
+    assert run(base) == set()
+
+
+@case
+def review_refuses_an_unknown_id(base):
+    note(base, "Alpha", "one")
+    assert cli(base, "review", "one", "ghost")[0] == 2
+
+
+def redate(base, project, name, when, folder="notes"):
+    p = base / project / folder / (name + ".md")
+    text = p.read_text(encoding="utf-8")
+    import re
+    p.write_text(re.sub(r"(?m)^reviewed: .*$", "reviewed: " + when, text), encoding="utf-8")
+
+
+@case
+def a_dependency_confirmed_unchanged_fires_no_propagation(base):
+    older = str(TODAY - datetime.timedelta(days=20))
+    note(base, "Alpha", "ground", title="The underlying decision", reviewed=older)
+    note(base, "Alpha", "leaf", title="Something built on top", reviewed=older,
+         depends="ground")
+    notes, V = loaded(base)
+    notelint.save_fingerprints(base, notes, ["leaf"], V)
+    redate(base, "Alpha", "ground", str(TODAY))       # confirmed, not a word changed
+    assert ("propagation", "leaf") not in run(base)
+
+
+@case
+def a_dependency_whose_body_changed_still_fires(base):
+    older = str(TODAY - datetime.timedelta(days=20))
+    note(base, "Alpha", "ground", title="The underlying decision", reviewed=older)
+    note(base, "Alpha", "leaf", title="Something built on top", reviewed=older,
+         depends="ground")
+    notes, V = loaded(base)
+    notelint.save_fingerprints(base, notes, ["leaf"], V)
+    note(base, "Alpha", "ground", title="The underlying decision", body="It changed.")
+    assert ("propagation", "leaf") in run(base)
+
+
+@case
+def review_records_the_fingerprints_inside_the_base(base):
+    note(base, "Alpha", "ground", title="The underlying decision")
+    note(base, "Alpha", "leaf", title="Something built on top", depends="ground")
+    cli(base, "review", "leaf")
+    import json
+    data = json.loads((base / ".notelint" / "fingerprints.json").read_text(encoding="utf-8"))
+    assert "ground" in data["fingerprints"]["leaf"]
+    assert ("unclaimed", "Alpha") not in run(base)
+
+
+@case
+def an_unreadable_fingerprint_file_is_noisy_not_silent(base):
+    older = str(TODAY - datetime.timedelta(days=20))
+    note(base, "Alpha", "ground", title="The underlying decision")
+    note(base, "Alpha", "leaf", title="Something built on top", reviewed=older,
+         depends="ground")
+    (base / ".notelint").mkdir()
+    (base / ".notelint" / "fingerprints.json").write_text("{not json", encoding="utf-8")
+    assert ("propagation", "leaf") in run(base)
+
+
+@case
+def close_turns_a_todo_into_a_fact_in_history(base):
+    note(base, "Alpha", "work", title="Ship the importer", type="todo", where="todo")
+    rc, out = cli(base, "close", "work", "--title", "The importer shipped")
+    assert rc == 0, out
+    p = base / "Alpha" / "history" / "work.md"
+    assert p.is_file() and not (base / "Alpha" / "todo" / "work.md").exists()
+    text = p.read_text(encoding="utf-8")
+    assert "type: fact" in text and "title: The importer shipped" in text
+    assert "**Was a todo until " + str(TODAY) + ".**" in text
+    assert run(base) == set()
+
+
+@case
+def close_keeps_it_in_notes_while_something_rests_on_it(base):
+    note(base, "Alpha", "work", title="Ship the importer", type="todo", where="todo")
+    note(base, "Alpha", "next", title="Document the importer", type="todo",
+         where="todo", depends="work")
+    rc, out = cli(base, "close", "work")
+    assert rc == 0, out
+    assert (base / "Alpha" / "notes" / "work.md").is_file()
+    assert ("depends on history", "next") not in run(base)
+
+
+@case
+def close_with_keep_files_it_in_notes(base):
+    note(base, "Alpha", "work", title="Ship the importer", type="todo", where="todo")
+    assert cli(base, "close", "work", "--keep")[0] == 0
+    assert (base / "Alpha" / "notes" / "work.md").is_file()
+
+
+@case
+def close_refuses_what_is_not_an_open_todo_or_still_blocks(base):
+    note(base, "Alpha", "fact", title="A fact")
+    note(base, "Alpha", "later", title="Then this", type="todo", where="todo")
+    note(base, "Alpha", "first", title="First this", type="todo", where="todo",
+         blocks="later")
+    assert cli(base, "close", "fact")[0] == 2
+    assert cli(base, "close", "first")[0] == 2, "a fact cannot block"
+    assert (base / "Alpha" / "todo" / "first.md").is_file(), "refused means untouched"
 
 
 def main():

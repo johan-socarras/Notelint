@@ -39,7 +39,7 @@ and that is its verification.
 Four more rules, each learned from a verification that did not work:
 
 - **Commands use the same anchors as `evidence:`** — paths relative to the
-  project or to the base, or absolute — and the file or folder a command reads
+  project or to the base — and the file or folder a command reads
   goes **in `evidence:` as well**. Then, when that path moves, the linter tells
   you for free.
 - **If the verification is "path X exists", it is not a command: it is a line
@@ -78,9 +78,10 @@ verify" has to be the last section, and the linter says so if it is not._
   `unverified` (needs checking; it **keeps blocking** whatever it blocked, and
   checking it is the first job, not treating it as closed).
   **A todo that got done is closed in its own note**, without creating another:
-  `type` becomes `fact`, the title is rewritten as a statement, "How to verify"
-  now checks that it is done, and one line says "Was a todo until YYYY-MM-DD".
-  The file is not renamed (links go by id). Two exceptions: if it has a
+  `notelint close <id>` makes `type` a `fact`, adds the line "Was a todo until
+  YYYY-MM-DD" and files it in `history/` (or in `notes/` while a live note rests
+  on it); you rewrite the title as a statement and make "How to verify" check
+  that it is done. The file is not renamed (links go by id). Two exceptions: if it has a
   non-empty `blocks`, clear that first or close it as `superseded` plus a new
   note; and if the outcome carries more than the todo note can hold, also
   `superseded` plus a new note.
@@ -89,15 +90,16 @@ verify" has to be the last section, and the linter says so if it is not._
   already happened. It keeps its links and stops aging.
 - **expires** — optional. After this date the claim must be re-verified.
 - **reviewed** — bump it whenever someone confirms the note still holds, even if
-  not a word changes. After 60 days the linter flags it (180 for a `reference`,
+  not a word changes: `notelint review <id>`. After 60 days the linter flags it (180 for a `reference`,
   an `incident`, or a `decision` with `depends-on`; an `idea` never ages). An
   `unverified` note left more than 14 days is reported too. Write the date the
   linter prints in its header.
 - **installed-version** — optional, and only on the one note that says which
   build of the project is installed, as `N` or `vN`. With it, a current todo
   whose name or title stayed on an older build is reported.
-- **evidence** — paths relative to the project or the base, absolute paths, or
-  URLs. It is also what **claims** material: for something to stop showing under
+- **evidence** — paths relative to the project or the base, or URLs. An absolute
+  path into the base is a `format` error: it works only on the machine that
+  wrote it. Absolute paths are for files that live outside the base. It is also what **claims** material: for something to stop showing under
   `UNCLAIMED`, cite its path here (or between backticks in the body); naming it
   is not enough. The linter checks that **paths** exist on disk, and reports
   one that changed after the note was last reviewed; it **does not check

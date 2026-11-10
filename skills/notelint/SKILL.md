@@ -15,7 +15,9 @@ A knowledge base is a directory whose subdirectories contain a `notes/` folder:
 
 ```
 <base>/
-  ProjectA/notes/*.md
+  ProjectA/notes/*.md       # what is true today
+  ProjectA/todo/*.md        # optional: the work still to do
+  ProjectA/ideas/*.md       # optional: ideas nobody has committed to
   ProjectA/history/*.md     # optional: the notes that no longer describe the present
   ProjectB/notes/*.md
 ```
@@ -37,8 +39,11 @@ project's findings, and the one that matters gets buried. The views are
 regenerated whole either way, and links into other projects still resolve.
 
 Its report is the starting point — not memory, and not whatever looks urgent.
-Exit code `1` means there are findings. Read them first, and let them tell you
-what the base needs before you decide what to add.
+It comes in two levels. `ERRORS` are things written wrong or broken, and exit
+code `1` means there are some: they go to zero before you call the work done.
+`REVIEWS` are a queue: say how many remain and clear a few, oldest first. Read
+the report first, and let it tell you what the base needs before you decide
+what to add.
 
 Lines under `INBOX` are what someone changed by hand and why, left in
 `INBOX.md` at the base. Do not ask them what they touched: it is written
@@ -53,8 +58,13 @@ Eight steps and three rules. In a base made by the installer it is
 existing note rather than stack a new one on top, and to propagate a change to
 whatever declared a dependency on it.
 
-For the shape of a note and what each field means, use `templates/note.md`,
-which sits beside the protocol in both layouts.
+**Write notes with the commands, never from memory or by copying another
+note:** `new <project> <type> <id> --title "…"` creates one from the template,
+dated today and filed by its type; `review <id> …` sets `reviewed` on the notes
+you confirmed; `close <id>` closes a todo that is done. They write the header
+and the date; what the note says is still yours. For the shape of a note and
+what each field means, read `templates/note.md`, which sits beside the protocol
+in both layouts.
 `OPEN.md` shows the work (with blocking chains in order) and `INDEX.md` shows the
 content. Both are generated — never edit them by hand.
 
@@ -100,6 +110,9 @@ five minutes, stop and say so in one line.
   `reviewed` date and the file's modification time. Do not overwrite recent work,
   and if the change you were about to make is already there, say so and move on
   instead of redoing it.
+- **Paths in `evidence:` are relative** to the project or to the base. An
+  absolute one works only on the machine that wrote it, and the linter reports
+  it.
 - **Never invent a "How to verify".** If you cannot name the command, path or
   screen where someone could check the claim, the note is not `current` — it is
   `unverified`. A verification step that does not work is worse than none,
@@ -108,9 +121,10 @@ five minutes, stop and say so in one line.
   reason**, so nobody proposes it again in six months believing it is new. A
   replaced note becomes `superseded`, and the note replacing it says so. To get
   the past out of the way, move the file to the project's `history/`.
-- **The date you write in `reviewed` is the one the linter prints** in its
-  header — the machine's local date — not your own clock, which may run on UTC
-  and turn the day over hours early. A future `reviewed` is a format error.
+- **The date in `reviewed` is the one the linter prints** in its header — the
+  machine's local date — not your own clock, which may run on UTC and turn the
+  day over hours early. `review` writes that date for you; a future `reviewed`
+  is a format error.
 - **Report what changed** when you finish: notes touched, closed, opened. A
   silent update is indistinguishable from no update.
 - **If you were asked to run something when you finish** (a script that shuts

@@ -19,12 +19,16 @@ code: it reads the whole graph and reports what no longer holds together.
   Kestrel                8 notes     2 open     0 unverified     1 in history
   ------------------------------------------------------------------
 
+  ==================================================================
+  ERRORS (4)  - written wrong or broken: these go to zero
+
+  FORMAT  (1)
+    sqlite-over-postgres   absolute path into the base: write
+                           `evidence/bench-2026-08-20.md`, which works
+                           on any machine and in any clone
+
   DEAD EVIDENCE  (1)
     mystery-benchmark      evidence/fts-benchmark-2026-08-26.csv
-
-  PROPAGATION  (1)
-    feed-poll-interval     sqlite-over-postgres was reviewed 2026-09-01,
-                           this is still at 2026-08-20
 
   HIDDEN TODO  (1)
     retry-storm-incident   carries ⏳ but its type is 'incident':
@@ -32,7 +36,23 @@ code: it reads the whole graph and reports what no longer holds together.
 
   UNCLAIMED  (1)
     Kestrel                evidence/screenshots
+
+  ==================================================================
+  REVIEWS (1)  - a queue: work down a few each session, oldest first
+
+  PROPAGATION  (1)
+    feed-poll-interval     sqlite-over-postgres was reviewed 2026-09-01,
+                           this is still at 2026-08-20
+
+  errors: 4 · reviews: 1
 ```
+
+Findings come in two levels. **Errors** are things written wrong or broken —
+a dead link, a missing file, a malformed date — and they go to zero before the
+work is done. **Reviews** are things that ask for a look — a note nobody has
+confirmed in two months, a dependency that moved on — and they are a queue you
+work down a few at a time. Only errors fail the exit code, so a note turning
+sixty days old never breaks your CI.
 
 ## Install
 
@@ -84,15 +104,17 @@ python notelint.py example --report-only
 ```
 
 `--report-only` leaves the tree alone. Drop it and the run also rewrites
-`INDEX.md` and `OPEN.md`, which are committed here so you can read them without
-running anything.
+`INDEX.md`, `OPEN.md` and `HISTORY.md`, which are committed here so you can read
+them without running anything.
 
-No dependencies, Python 3.8+. The bundled example ships with **four deliberate
-faults** so the first run shows you what a finding looks like. Exit code is `1`
-when there are findings, so it drops straight into CI.
+No dependencies, Python 3.8+. The bundled example ships with **five deliberate
+faults** — four errors and one review — so the first run shows you what a
+finding looks like. Exit code is `1` when there are errors, so it drops straight
+into CI; `--strict` makes reviews fail it too.
 
 > If you clone this repo months from now, the example will also report
-> `UNREVIEWED` notes. That is not rot in the example — that is the tool working.
+> `UNREVIEWED` notes, under reviews. That is not rot in the example — that is
+> the tool working — and it does not change the exit code.
 
 ## The idea
 
@@ -150,6 +172,32 @@ It runs nothing — that judgment stays yours. You run each one and touch
 `reviewed` only where the result matched what the note predicted. A different
 result is not a failed command, it's a finding: the note is wrong, fix it.
 
+## Write notes with the commands, not from memory
+
+A note copied by hand from an old one carries the old one's mistakes: a field
+renamed, a date in the wrong format, the verification section missing. Three
+commands do the writing a routine needs, with today's date, and decide nothing
+about what the note says:
+
+```bash
+python notelint.py new Kestrel todo opml-export --title "Export subscriptions as OPML" --base example
+python notelint.py review feed-poll-interval --base example
+python notelint.py close opml-import --title "Subscriptions import from OPML" --base example
+```
+
+- **`new <project> <type> <id> --title "…"`** writes the note from the template
+  and prints its path. It goes where its type belongs: a `todo` in `todo/`, an
+  `idea` in `ideas/`, everything else in `notes/` (`--folder` overrides). Until
+  you fill in `How to verify`, the linter reports it.
+- **`review <id> …`** sets `reviewed` to today on notes you have just confirmed,
+  keeping the file's encoding and line endings as they were. It also records a
+  fingerprint of each note they depend on (see `propagation` below).
+- **`close <id>`** is for a `todo` that is done. It becomes a `fact` in its own
+  file, with a line saying until when it was a todo. If no live note
+  `depends-on` or is blocked by it, it moves to `history/`; if one does, or with
+  `--keep`, to `notes/`. A todo that still `blocks` something is refused: a fact
+  cannot block.
+
 ## The links are typed, and that is the point
 
 `related:` is cheap and says nothing. The other three carry consequences the
@@ -164,32 +212,40 @@ linter can act on:
 
 ## What it checks
 
+**Errors** — written wrong or broken. They fail the exit code and go to zero.
+
 | Check | Fires when |
 |---|---|
 | `broken link` | `[[name]]` points at a note that doesn't exist (code spans are ignored) |
+| `ambiguous link` | `[[name]]` matches notes in two projects, so it points at neither |
 | `dead evidence` | A cited file is gone from disk |
-| `evidence changed` | A cited file was modified after the `current` note citing it was last reviewed — what the note says may no longer match it. A line ending in `(existence only)` is spared, see below |
-| `touched unreviewed` | The note itself was modified after its `reviewed` date: someone edited it without confirming it, by hand or an agent that skipped the bump |
-| `expired` | `expires` has passed and the note still says `current` |
-| `unreviewed` | A `current` note hasn't been confirmed in 60 days — 180 for a `reference`, an `incident`, or a `decision` that declares what it depends on; an `idea` never ages |
-| `stale unverified` | A note has been `unverified` for more than 14 days — a doubt nobody resolves is an abandoned note: check it, or drop it with the reason |
 | `zombie` | A `superseded`/`dropped` note is still treated as live by an open one (a `related` link to a `dropped` note is fine: that is what keeping it is for) |
 | `depends on history` | A live note `depends-on` or `blocks` a note in `history/` that is still current: either that note is not past, or the link is `related` |
 | `supersedes a live note` | A note `supersedes` one that is still open — either that one becomes `superseded`, or the link is wrong |
 | `no successor` | A `superseded` note that no other note declares with `supersedes`: replaced by what? |
 | `unblocked` | A blocker closed, so blocked work is free and nobody noticed |
 | `permanent block` | A note that is not a `todo` uses `blocks`. Only a `todo` gets closed, so a `fact` or a `decision` that blocks holds its target forever |
-| **`propagation`** | A note was reviewed **after** something that declared a dependency on it |
 | `hidden todo` | A current note that is not a `todo` carries the ⏳ mark — a task written there never reaches `OPEN.md`. Give it a `todo` note of its own and link to it |
 | `past version` | In a project whose note carries `installed-version: N`, a current `todo` whose file name names an older build `vM`, or whose title names one as the highest. It is what is left when a plan changes and a note is fixed inside but not outside |
 | `no verification` | A current note other than an `idea` has no `How to verify` section, or an empty one. A rule of conduct may title it `How to apply` and say how you notice the rule was broken |
 | `long title` | A title runs past 160 characters: it is doing the body's job. The title says what the note is; the detail goes below |
 | `long note` | A note that is not closed runs past 150 lines: it holds two claims, or one still carrying its past |
 | **`unclaimed`** | A file or folder is in the project and **no note explains why it exists** (build junk like `__pycache__`, `node_modules` and `target` is skipped) |
-| `duplicate?` | Two current notes in one project have near-identical titles |
-| `ambiguous link` | `[[name]]` matches notes in two projects, so it points at neither |
 | `inbox` | `INBOX.md` at the base has lines under `## To process` — someone changed something by hand and left word why, and no note accounts for it yet. Turn each line into a note, then move it under `## Processed` |
-| `duplicate id`, `wrong project`, `format` | Structural mistakes, including a malformed date, a `reviewed` date in the future, or a section after `How to verify` (it goes last) |
+| `duplicate id`, `wrong project`, `format` | Structural mistakes, including a malformed date, a `reviewed` date in the future, a section after `How to verify` (it goes last), or an evidence path that is absolute and points into the base — it works on the machine that wrote it and is dead in every clone, so the finding says the relative path to write instead |
+
+**Reviews** — something asks for a look. A queue: they are counted and printed,
+and you work them down a few per session, oldest first.
+
+| Check | Fires when |
+|---|---|
+| `evidence changed` | A cited file was modified after the `current` note citing it was last reviewed — what the note says may no longer match it. A line ending in `(existence only)` is spared, see below |
+| `touched unreviewed` | The note itself was modified after its `reviewed` date: someone edited it without confirming it, by hand or an agent that skipped the bump |
+| `expired` | `expires` has passed and the note still says `current` |
+| `unreviewed` | A `current` note hasn't been confirmed in 60 days — 180 for a `reference`, an `incident`, or a `decision` that declares what it depends on; an `idea` never ages |
+| `stale unverified` | A note has been `unverified` for more than 14 days — a doubt nobody resolves is an abandoned note: check it, or drop it with the reason |
+| **`propagation`** | A note was reviewed **after** something that declared a dependency on it, and its body is no longer the one the dependent note was confirmed against |
+| `duplicate?` | Two current notes in one project have near-identical titles |
 
 `evidence changed` and `touched unreviewed` read modification times, so they
 stay quiet when the base sits inside a git work tree: a clone, a checkout or a
@@ -202,6 +258,11 @@ are the ones that make the base behave like a system instead of a folder:
 
 - **`propagation`** is the nerve. You correct one note, and the linter tells you
   which notes downstream just became suspect. Rot spreads; so should the alarm.
+  It only rings for a real change: `review` keeps a fingerprint of each note a
+  reviewed note depends on, in `.notelint/fingerprints.json` at the base, and a
+  dependency confirmed later without a word changed fires nothing. With no
+  fingerprint it fires on the dates alone — noisy, never silent. The file is
+  content, not timestamps, so it survives a clone: commit it with the notes.
 - **`unclaimed`** is inventory. Drop a folder of screenshots into a project and
   you have thirty seconds of context and two months of "what is this, and can I
   delete it?". The linter refuses to let material sit there unexplained.
@@ -257,11 +318,12 @@ guard does not apply.
 
 | Flag | What it does |
 |---|---|
-| `--report-only` | Report, but do not write `INDEX.md` / `OPEN.md` |
+| `--report-only` | Report, but do not write `INDEX.md` / `OPEN.md` / `HISTORY.md` |
 | `--force` | Rewrite a view even if this tool did not write it |
 | `--project NAME` | Report on one project only (repeatable) |
 | `--lang en\|es` | Field vocabulary (default: detect) |
 | `--verify [DAYS]` | Print every "How to verify", dependencies first |
+| `--strict` | Exit 1 on reviews too, not only on errors |
 | `--exit-zero` | Always exit 0, for when you do not want CI to fail |
 | `--version` | Print the version and exit |
 
@@ -299,7 +361,7 @@ before this one. Kept in `notes/`, they crowd the index, show up in every
 search, and age into `unreviewed` findings that nobody is ever going to clear.
 
 Each project can have a `history/` folder beside `notes/`. Moving a file there,
-same name, is the whole operation. What belongs there is a closed note
+same name, is the whole operation — and `close` does it for a finished todo. What belongs there is a closed note
 (`superseded` or `dropped`), or a `fact`, an `incident` or an `idea` about what
 already happened. A `todo`, a `decision` or a `reference` still in force, or an
 `unverified` note, is present work, and putting one there is a `format`
@@ -309,15 +371,18 @@ The linter still loads it, so every link into it resolves, and checks its
 format and its links. Nothing else: it does not age, its evidence is not
 watched, and it is left out of `INDEX.md` (one line says how many and where),
 `OPEN.md`, `--verify` and `search` without `--all`. The one new finding is
-`depends on history`: a live note that rests on one of these.
+`depends on history`: a live note that rests on one of these. To see the past at
+a glance, each project with a history gets a generated `HISTORY.md`: one line
+per note, most recently reviewed first.
 
 The example ships one: Kestrel's dropped mobile app lives in
 `example/Kestrel/history/`.
 
 ## Generated views, never hand-edited
 
-Each run rewrites `INDEX.md` (everything, by project and type) and `OPEN.md`
-(the work list). Delete them and they come back identical. A file of your own
+Each run rewrites `INDEX.md` (everything, by project and type), `OPEN.md`
+(the work list) and, where there is a history, `HISTORY.md` (the past). Delete
+them and they come back identical. A file of your own
 already sitting under either name is left alone — the linter only replaces what
 it wrote itself, unless you pass `--force`. You change what's in
 them by editing a note's `status`, not by editing the list — which is exactly
@@ -359,8 +424,11 @@ silently vanishing from the view for lack of a root.
 
 ## Multi-project, multi-language
 
-Any directory **directly under the base** containing a `notes/` folder is a
-project, and so is one left with only `history/`. There is nothing to register: create the folder and it's picked up.
+Any directory **directly under the base** containing a `notes/`, `todo/` or
+`ideas/` folder is a project, and so is one left with only `history/`. There is
+nothing to register: create the folder and it's picked up. The three live
+folders are read alike — a `todo` filed in `notes/` is still a todo — and they
+exist so that open work and loose ideas do not bury the claims.
 Nesting is not searched, and a handful of names (`tools`, `templates`, `docs`,
 `.git` and friends) never count as projects. Links cross project boundaries,
 so a lesson learned in one project can be a dependency of another.
@@ -373,15 +441,18 @@ it auto-detect); adding another is a dictionary entry in `VOCAB`.
 
 This is where it started. If you hand an agent a folder of project docs, it will
 read stale ones with the same confidence as fresh ones — and a confident wrong
-answer costs more than no answer. Three properties matter here more than they do
+answer costs more than no answer. Four properties matter here more than they do
 for a human reader:
 
 1. **`How to verify` gives the agent a cheap action** instead of an expensive
    re-derivation from source.
 2. **`unclaimed` stops silent accumulation.** Agents generate files. Every one of
    them should have to justify itself.
-3. **Exit code 1** means "the knowledge base is inconsistent" is a condition you
-   can gate on, not a judgment call.
+3. **Exit code 1** means "the knowledge base is broken" is a condition you can
+   gate on, not a judgment call — and the reviews tell the agent where to look
+   next without blocking it.
+4. **`new`, `review` and `close`** mean an agent never writes a note's header
+   from memory, which is where most of its format mistakes came from.
 
 ### The agent skill
 
@@ -436,8 +507,10 @@ enough to pass whole, and `tests/` will tell you if you broke something.
 
 - **No dependencies, one file.** The parser reads a deliberately small subset of
   YAML. If the format ever needs real YAML, the format is too complicated.
-- **Flat `notes/`, on purpose.** Folders by topic reintroduce "where does this
-  go?", and that question is what produces the same fact filed in two places.
+- **Flat folders by kind, never by topic.** `notes/`, `todo/` and `ideas/` say
+  what a note *is*, which has one answer. Folders by topic reintroduce "where
+  does this go?", and that question is what produces the same fact filed in two
+  places.
 - **Nothing is deleted.** Wrong turns become `dropped` with the reason, so nobody
   proposes them again in six months believing they're new. What is past moves
   to `history/`: out of the way, still linked.

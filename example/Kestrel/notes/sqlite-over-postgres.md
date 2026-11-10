@@ -7,7 +7,7 @@ created: 2026-08-18
 reviewed: 2026-09-01
 expires:
 evidence:
-  - evidence/bench-2026-08-20.md
+  - /Users/dana/notes/Kestrel/evidence/bench-2026-08-20.md
 links:
   depends-on: []
   supersedes: []

@@ -210,7 +210,7 @@ reader trusts it.
 
     Write-Host ""
     if ($rc -eq 1) {
-        Write-Dim "Exit code 1 means it found something - that is the tool working."
+        Write-Dim "Exit code 1 means it found an error - that is the tool working."
     }
 
     # ------------------------------------------------------------- what next
@@ -224,8 +224,9 @@ reader trusts it.
     Write-Host "  Just look, change nothing:"
     Write-Host "    cd `"$Base`"; & `"$pyExe`" tools\notelint.py . --report-only" -ForegroundColor Cyan
     Write-Host ""
-    Write-Host "  Next: write your first real note. Copy templates\note.md into"
-    Write-Host "  $FirstProject\notes\ and fill it in. Then run the linter again."
+    Write-Host "  Next: write your first real note, from the base:"
+    Write-Host "    & `"$pyExe`" tools\notelint.py new `"$FirstProject`" fact my-first-claim --title `"One claim`"" -ForegroundColor Cyan
+    Write-Host "  Fill in the file it prints, then run the linter again."
     Write-Host ""
 }
 finally {

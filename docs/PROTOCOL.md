@@ -1,12 +1,14 @@
 # The update routine
 
-`notelint` reports. It does not decide, and it does not write notes. This is the
-routine that surrounds it — written for a person, and equally for an AI agent
-asked to "update the notes".
+`notelint` reports. It does not decide what a note says. Three of its commands
+— `new`, `review` and `close` — do the writing a routine needs, so that nobody
+types a header from memory. This is the routine that surrounds it — written for
+a person, and equally for an AI agent asked to "update the notes".
 
 The commands below are written for a base made by the installer, run from the
 base: `python tools/notelint.py …`. In a clone of the repository it is
-`python notelint.py <base> …` for a lint, and `--base <base>` for `search`.
+`python notelint.py <base> …` for a lint, and `--base <base>` for `search`,
+`new`, `review` and `close`.
 
 ## Which part of the base
 
@@ -43,8 +45,14 @@ there.** Unexplained material is material nobody dares delete in six months.
    accounted for, move it from `## To process` to `## Processed`.
 
 2. **Walk what actually happened.** For every new fact, decision or open item:
-   is there already a note? Then **fix that one**. If not, create one from
-   `templates/note.md`.
+   is there already a note? Then **fix that one**. If not, create it with the
+   command, never by copying another note:
+   ```bash
+   python tools/notelint.py new <project> <type> <id> --title "One claim"
+   ```
+   It writes the template with today's date and files the note by its type: a
+   `todo` in `todo/`, an `idea` in `ideas/`, the rest in `notes/`. Then fill in
+   the body; `templates/note.md` explains each part.
 
    And for every note you touch, one more question: **does this note leave work
    undone?** Then create or fix a `todo` note, and leave a single line here
@@ -59,7 +67,9 @@ there.** Unexplained material is material nobody dares delete in six months.
 3. **Propagate.** For every note you touched, look at who links to it with
    `depends-on` and review those too. The linter lists this under
    `PROPAGATION`: it fires when a note was reviewed *after* something that
-   declared a dependency on it.
+   declared a dependency on it, and its body is no longer the one that note was
+   confirmed against. `review` keeps that fingerprint, so a dependency you
+   confirm without changing a word fires nothing.
 
 4. **Claim new material.** Anything that entered the project needs its note. The
    linter lists these under `UNCLAIMED`. Closing those is part of the update,
@@ -67,7 +77,10 @@ there.** Unexplained material is material nobody dares delete in six months.
 
    **Material is claimed by citing its path, not by naming it.** What counts is
    the `evidence:` field and paths written between backticks in the body,
-   relative to the project or to the base. Citing something deep also claims the
+   relative to the project or to the base. Never absolute: a path like
+   `/home/you/kb/Alpha/evidence/x.md` works on the machine that wrote it and is
+   dead in every clone, and the linter reports it as `FORMAT` with the relative
+   path to write instead. Citing something deep also claims the
    directories above it. Mentioning a bare name in a sentence is not enough —
    that was the earlier rule, and it meant a new directory called `legal`, `src`
    or `tests` never surfaced, because those words were already written somewhere
@@ -92,11 +105,13 @@ there.** Unexplained material is material nobody dares delete in six months.
 5. **Move statuses, don't delete.** Anything **replaced** becomes `superseded`,
    and the note replacing it declares `supersedes`.
 
-   A **`todo` that got done** is closed *in its own note*: set `type` to `fact`,
-   rewrite the title as a statement of what is now true, make "How to verify"
-   check that it is done, and add one line — "Was a todo until YYYY-MM-DD". Do
-   not rename the file and do not create a second note. Two exceptions: if it
-   has a non-empty `blocks`, clear that first (or use `superseded` plus a new
+   A **`todo` that got done** is closed *in its own note*, with
+   `python tools/notelint.py close <id> --title "What is now true"`. It sets
+   `type` to `fact`, adds the line "Was a todo until YYYY-MM-DD", and files it:
+   in `history/` if no live note rests on it, in `notes/` if one does (or with
+   `--keep`). Then make "How to verify" check that it is done. Do not rename the
+   file and do not create a second note. Two exceptions: if it has a non-empty
+   `blocks`, `close` refuses — clear that first (or use `superseded` plus a new
    note); and if the outcome does not fit in the note, `superseded` plus a new
    note is right.
 
@@ -115,8 +130,10 @@ there.** Unexplained material is material nobody dares delete in six months.
    `related`.
 
 6. **Touch `reviewed`** on every note you confirmed, even when not a word
-   changed. That field is the whole difference between "still true" and "nobody
-   has looked at this since July".
+   changed, with `python tools/notelint.py review <id> [<id> …]`. That field is
+   the whole difference between "still true" and "nobody has looked at this
+   since July", and the command also keeps the fingerprints that step 3 relies
+   on.
 
    Confirming many at once? Go in the order the linter lists them —
    **dependencies first** — or one project per session, oldest first. Working
@@ -126,8 +143,11 @@ there.** Unexplained material is material nobody dares delete in six months.
    date. An agent's own clock may run on UTC and turn the day over hours early,
    and a `reviewed` in the future is a format error.
 
-7. **Run the linter until it's clean.** If a finding is left on purpose, say
-   which and why rather than leaving it silent.
+7. **Run the linter until the errors are at zero.** The report has two levels.
+   `ERRORS` — something written wrong or broken — go to zero; if one is left on
+   purpose, say which and why rather than leaving it silent. `REVIEWS` —
+   something that asks for a look — are a queue: say how many remain, and work
+   down a few each session, oldest first.
 
    For the checks inside the notes, `python tools/notelint.py . --verify
    --project <name>` prints every "How to verify", dependencies first. Run them
@@ -192,6 +212,7 @@ It finds broken links, evidence that vanished or changed, expired and
 unreviewed notes, doubts left unresolved, zombies, blocks that can never lift,
 pending propagation, todos named after a past version, notes without a way to
 verify them, notes grown past one claim, live notes resting on history, and
-unclaimed material. **It does not know whether a note is true,
-and it does not write notes.** That stays human — or agent — work. What the tool
+unclaimed material, and evidence written as an absolute path. **It does not know
+whether a note is true, and it writes only what `new`, `review` and `close` are
+asked to.** What a note says stays human — or agent — work. What the tool
 guarantees is that the mess cannot be left in silence.

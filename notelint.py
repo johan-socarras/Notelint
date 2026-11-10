@@ -7,13 +7,14 @@ Documentation does not rot because people are lazy. It rots because nothing
 ever checks whether it is still true. notelint checks.
 
 Point it at a directory. Every subdirectory that contains a `notes/` folder is
-a project; a `history/` folder beside it holds the notes that are past. Notes
-are global across projects (links may cross), but each project also gets its
-own index and its own list of open work.
+a project, with its open work in `todo/` and its loose ideas in `ideas/`; a
+`history/` folder beside them holds the notes that are past. Notes are global
+across projects (links may cross), but each project also gets its own index,
+its own list of open work and, if it has a past, its own history.
 
     python notelint.py                 # lint the current directory, write indexes
     python notelint.py path/to/base    # lint somewhere else
-    python notelint.py --report-only   # do not write INDEX.md / OPEN.md
+    python notelint.py --report-only   # do not write INDEX.md / OPEN.md / HISTORY.md
     python notelint.py --lang es       # Spanish field names
     python notelint.py --project Alpha # report on one project only
 
@@ -22,15 +23,24 @@ own index and its own list of open work.
     python notelint.py open feed-poll-interval [--with obsidian|code]
         # open one note (or the only one its words match) and print its path
 
-Exit code is 1 when there are findings, so it works in CI. Use --exit-zero to
-always exit 0.
+    python notelint.py new Alpha todo ship-the-importer --title "Ship the importer"
+        # write a note from the template, dated today, where its type belongs
+    python notelint.py review feed-poll-interval [more ids]
+        # set 'reviewed' to today and fingerprint what those notes depend on
+    python notelint.py close ship-the-importer [--title "..."] [--keep]
+        # a todo that is done becomes a fact; to history/ if nothing rests on it
+
+Findings come in two levels. ERRORS are things written wrong or broken; they
+go to zero. REVIEWS ask for a look and are a queue. Exit code is 1 when there
+are errors, so it works in CI; --strict also fails on reviews, and --exit-zero
+always exits 0.
 
 No dependencies. Python 3.8+.
 """
-import sys, re, datetime, unicodedata, argparse
+import os, sys, re, json, hashlib, datetime, unicodedata, argparse
 from pathlib import Path
 
-__version__ = "1.0.0"
+__version__ = "2.0.0"
 
 try:
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -59,13 +69,33 @@ NEVER_A_PROJECT = {"templates", "tools", "docs", ".git", ".github", "node_module
 GENERATED = {"__pycache__", ".pytest_cache", ".mypy_cache", "node_modules",
              "target", ".venv", "venv"}
 
-# A project keeps its notes in notes/. Beside it, history/ holds the ones that
-# no longer describe the present: closed notes, and facts, incidents and ideas
-# about what already happened. They are loaded, so links into them still
-# resolve, but they do not age, their evidence is not watched, and they stay
-# out of the views and out of search unless asked for. Same id, same file:
+# A project keeps what is true today in notes/, the work still to do in todo/
+# and the ideas nobody has committed to in ideas/. The three are read alike:
+# the folder is where `notelint new` files a note by its type, so the open work
+# and the loose ideas do not bury the claims. Beside them, history/ holds the
+# notes that no longer describe the present: closed notes, and facts, incidents
+# and ideas about what already happened. They are loaded, so links into them
+# still resolve, but they do not age, their evidence is not watched, and they
+# stay out of the views and out of search unless asked for. Same id, same file:
 # moving a note there is the whole operation.
-NOTES, HISTORY = "notes", "history"
+NOTES, TODO_DIR, IDEAS_DIR, HISTORY = "notes", "todo", "ideas", "history"
+LIVE_FOLDERS = (NOTES, TODO_DIR, IDEAS_DIR)
+
+# Where `review`, `new` and `close` keep what each note's dependencies said
+# when it was last confirmed (see `propagation` in check()). One file per base.
+STATE_DIR, FINGERPRINTS = ".notelint", "fingerprints.json"
+
+# Findings come in two levels. ERRORS: something is written wrong or broken;
+# it goes to zero before the work is called done, and it is what fails the
+# exit code. REVIEWS: something asks for a look; a queue worked down a few at
+# a time, oldest first. --strict fails on both. A category missing from both
+# lists still prints, under ERRORS, rather than vanish.
+ERRORS = ["inbox", "duplicate id", "format", "wrong project", "broken link", "ambiguous link",
+          "dead evidence", "zombie", "depends on history", "supersedes a live note",
+          "no successor", "unblocked", "permanent block", "hidden todo", "past version",
+          "no verification", "long title", "long note", "unclaimed"]
+REVIEWS = ["evidence changed", "touched unreviewed", "expired", "unreviewed",
+           "stale unverified", "propagation", "duplicate?"]
 
 # ---------------------------------------------------------------------------
 # Vocabulary. The note format is the same in every language; only the field
@@ -80,8 +110,10 @@ VOCAB = {
         "types": ["decision", "fact", "todo", "idea", "incident", "reference"],
         "statuses": ["current", "superseded", "dropped", "unverified"],
         "edges": ["depends-on", "supersedes", "blocks", "related"],
-        "index": "INDEX.md", "open": "OPEN.md",
+        "index": "INDEX.md", "open": "OPEN.md", "history": "HISTORY.md",
         "inbox": "INBOX.md", "inbox_open": "to process",
+        "what": "What it is", "verify": "How to verify", "the_idea": "The idea",
+        "was_todo": "Was a todo until {date}.",
     },
     "es": {
         "fields": {"title": "titulo", "type": "tipo", "project": "proyecto",
@@ -91,8 +123,10 @@ VOCAB = {
         "types": ["decision", "hecho", "pendiente", "idea", "incidente", "referencia"],
         "statuses": ["vigente", "superado", "descartado", "en-duda"],
         "edges": ["depende-de", "supera-a", "bloquea", "relacionada"],
-        "index": "INDICE.md", "open": "ABIERTO.md",
+        "index": "INDICE.md", "open": "ABIERTO.md", "history": "HISTORIAL.md",
         "inbox": "BUZON.md", "inbox_open": "por procesar",
+        "what": "Qué es", "verify": "Cómo se comprueba", "the_idea": "La idea",
+        "was_todo": "Era pendiente hasta el {date}.",
     },
 }
 
@@ -144,7 +178,7 @@ def plural(count, word):
 
 def detect_lang(base):
     """Pick the vocabulary whose status field appears in the notes."""
-    for note in base.glob("*/notes/*.md"):
+    for note in [p for d in LIVE_FOLDERS for p in base.glob("*/" + d + "/*.md")]:
         try:
             head = note.read_text(encoding="utf-8", errors="replace")[:600]
         except OSError:
@@ -156,12 +190,13 @@ def detect_lang(base):
 
 
 def projects(base):
-    """Directories with notes/, or with only history/ left: a project whose
-    last note went to history is still loaded, or links into it would break."""
+    """Directories with notes/, todo/ or ideas/, or with only history/ left: a
+    project whose last note went to history is still loaded, or links into it
+    would break."""
     out = []
     for d in sorted(base.iterdir()):
         if (d.is_dir() and d.name not in NEVER_A_PROJECT and not d.name.startswith(".")
-                and ((d / NOTES).is_dir() or (d / HISTORY).is_dir())):
+                and any((d / sub).is_dir() for sub in LIVE_FOLDERS + (HISTORY,))):
             out.append(d)
     return out
 
@@ -250,7 +285,7 @@ def load(folders, V):
     """
     seen = {}
     for c in folders:
-        for sub in (NOTES, HISTORY):
+        for sub in LIVE_FOLDERS + (HISTORY,):
             for p in sorted((c / sub).glob("*.md")):
                 n = parse(p, c, V)
                 n["history"] = sub == HISTORY
@@ -272,8 +307,10 @@ def load(folders, V):
 
 
 def place(n):
-    """Where a note lives, for a person to read: `Alpha`, or `Alpha/history`."""
-    return n["folder"].name + ("/" + HISTORY if n["history"] else "")
+    """Where a note lives, for a person to read: `Alpha`, `Alpha/todo`,
+    `Alpha/ideas` or `Alpha/history`."""
+    sub = n["path"].parent.name
+    return n["folder"].name + ("" if sub == NOTES else "/" + sub)
 
 
 def keywords(t):
@@ -320,6 +357,41 @@ def evidence_exists(e, folder, base):
     return evidence_path(e, folder, base) is not None
 
 
+RE_ABSOLUTE = re.compile(r"^([A-Za-z]:/|/|~/)")
+
+
+def inside_base(e, folder, base):
+    """If an evidence line is an absolute path into the base, the same path
+    written relative (to the base, or to the note's project); otherwise None.
+
+    An absolute path works on the machine that wrote it and nowhere else: a
+    clone, a second computer or a teammate finds dead evidence. It is matched
+    two ways: it resolves into the base here, or it passes through a folder
+    named like the base or like the note's project and the rest exists here
+    (`C:\\Users\\dana\\notes\\Kestrel\\evidence\\x.md` read anywhere else).
+    """
+    if e.startswith("http://") or e.startswith("https://"):
+        return None
+    raw = cite_path(e).replace("\\", "/")
+    if not RE_ABSOLUTE.match(raw):
+        return None
+    try:
+        rel = Path(raw).expanduser().resolve().relative_to(base.resolve())
+        if str(rel) != ".":
+            return rel.as_posix()
+    except (ValueError, OSError, RuntimeError):
+        pass
+    parts = [p for p in raw.split("/") if p]
+    for k, p in enumerate(parts):
+        rest = parts[k + 1:]
+        if not rest:
+            break
+        for name, root in ((base.name, base), (folder.name, folder)):
+            if p.lower() == name.lower() and root.joinpath(*rest).exists():
+                return "/".join(rest)
+    return None
+
+
 def under_git(base):
     """True when the base sits inside a git work tree.
 
@@ -335,6 +407,52 @@ def modified(path):
         return datetime.date.fromtimestamp(path.stat().st_mtime)
     except OSError:
         return None
+
+
+# ---------------------------------------------------------------------------
+# Fingerprints. When a note is confirmed, the body of each note it depends on
+# is hashed and kept, so that a later review of a dependency that changed
+# nothing does not ask for the note to be confirmed all over again. Content,
+# not dates: a clone keeps them, which is why this works inside git too.
+# ---------------------------------------------------------------------------
+def body_sha(n):
+    """sha256 of what follows the frontmatter, line endings and edges evened out."""
+    body = n["body"].replace("\r\n", "\n").strip()
+    return hashlib.sha256(body.encode("utf-8")).hexdigest()
+
+
+def read_fingerprints(base):
+    """{A: {B: {"sha", "date"}}}, or {} when there is no file or it is unreadable."""
+    try:
+        data = json.loads((base / STATE_DIR / FINGERPRINTS).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    prints = data.get("fingerprints") if isinstance(data, dict) else None
+    if not isinstance(prints, dict):
+        return {}
+    return {a: {b: h for b, h in deps.items() if isinstance(h, dict)}
+            for a, deps in prints.items() if isinstance(deps, dict)}
+
+
+def save_fingerprints(base, notes, ids, V):
+    """Record, for each of `ids`, the body of every note it depends on as it is now."""
+    prints = read_fingerprints(base)
+    for a in ids:
+        n = notes.get(a)
+        if n is None:
+            continue
+        entry = prints.setdefault(a, {})
+        for b in n["links"][V["edges"][0]]:
+            o = notes.get(b)
+            if o and not o["unreadable"]:
+                entry[b] = {"sha": body_sha(o), "date": str(TODAY)}
+    folder = base / STATE_DIR
+    folder.mkdir(parents=True, exist_ok=True)
+    tmp = folder / (FINGERPRINTS + ".tmp")
+    with open(str(tmp), "w", encoding="utf-8", newline="\n") as fh:
+        fh.write(json.dumps({"fingerprints": prints}, indent=1, ensure_ascii=False,
+                            sort_keys=True) + "\n")
+    os.replace(str(tmp), str(folder / FINGERPRINTS))
 
 
 # ---------------------------------------------------------------------------
@@ -604,6 +722,14 @@ def check(notes, clashes, base, V, ambiguous=()):
         #    note was last confirmed: what it says may no longer match. A line
         #    marked existence-only is spared the second half.
         for e in n["evidence"]:
+            rel = inside_base(e, n["folder"], base)
+            if rel:
+                out.append(("format", i, "absolute path into the base: write `" + rel
+                            + "`, which works on any machine and in any clone"))
+                # What it points at is there: one finding, not a second one
+                # saying the same path is dead on every other machine.
+                if evidence_exists(rel, n["folder"], base):
+                    continue
             if not evidence_exists(e, n["folder"], base):
                 out.append(("dead evidence", i, e))
             elif use_mtime and r and n["status"] == CURRENT and not EXISTS_ONLY.search(e):
@@ -724,7 +850,12 @@ def check(notes, clashes, base, V, ambiguous=()):
                             + ": make it a " + TODO + ", or change the link to "
                             + DEPENDS + " or " + RELATED))
 
-    # 6. propagation: B was reviewed after A, and A said it depends on B
+    # 6. propagation: B was reviewed after A, and A said it depends on B, and
+    #    B's body is no longer the one A was confirmed against. `notelint
+    #    review A` keeps a fingerprint of B; re-confirming B without changing a
+    #    word then fires nothing at A. With no fingerprint it fires as it always
+    #    did: noisy, never silent.
+    prints = read_fingerprints(base)
     for i, n in sorted(notes.items()):
         ra = as_date(n["reviewed"])
         if not ra or n["status"] != CURRENT or n["history"]:
@@ -735,8 +866,12 @@ def check(notes, clashes, base, V, ambiguous=()):
                 continue
             rb = as_date(o["reviewed"])
             if rb and rb > ra:
+                h = prints.get(i, {}).get(d)
+                if h and not o["unreadable"] and h.get("sha") == body_sha(o):
+                    continue
                 out.append(("propagation", i,
-                            d + " was reviewed " + str(rb) + ", this is still at " + str(ra)))
+                            d + " was reviewed " + str(rb) + ", this is still at " + str(ra)
+                            + (" (and its body changed)" if h else "")))
 
     # 6b. hidden todo: the ⏳ marker inside a note that is not a todo never
     #     reaches OPEN.md, so the work drops out of sight.
@@ -782,7 +917,7 @@ def check(notes, clashes, base, V, ambiguous=()):
     for c in {n["folder"] for n in notes.values()}:
         claimed, cited = claimed_paths([n for n in notes.values() if n["folder"] == c], c)
         for entry in sorted(c.iterdir()):
-            if (entry.name in (NOTES, HISTORY, V["index"], V["open"])
+            if (entry.name in LIVE_FOLDERS + (HISTORY, V["index"], V["open"], V["history"])
                     or entry.name in GENERATED or entry.name.startswith(".")):
                 continue
             children = sorted(entry.iterdir()) if entry.is_dir() else []
@@ -824,11 +959,6 @@ def check(notes, clashes, base, V, ambiguous=()):
     return out
 
 
-ORDER = ["inbox", "duplicate id", "format", "wrong project", "broken link", "ambiguous link",
-         "dead evidence", "evidence changed", "touched unreviewed",
-         "expired", "unreviewed", "stale unverified", "zombie", "depends on history",
-         "supersedes a live note", "no successor", "unblocked", "permanent block", "propagation", "hidden todo", "past version", "no verification",
-         "long title", "long note", "unclaimed", "duplicate?"]
 
 
 # ---------------------------------------------------------------------------
@@ -848,19 +978,40 @@ def index_block(group, prefix, V):
     return out
 
 
-def history_line(hist, prefix):
+def history_line(hist, prefix, V):
     """The one mention of history in an index: how many, and where."""
     if not hist:
         return []
     one = len(hist) == 1
     return ["_In `" + prefix + HISTORY + "/`: " + str(len(hist))
             + (" note that no longer describes" if one else " notes that no longer describe")
-            + " the present. " + ("It stays" if one else "They stay")
-            + " out of this index, and out of `search` unless you pass `--all`._", ""]
+            + " the present, listed in `" + prefix + V["history"] + "`. "
+            + ("It stays" if one else "They stay") + " out of this index, and out of `search` unless you pass `--all`._", ""]
+
+
+def history_view(c, hist, V):
+    """HISTORY.md of one project: a line per note in history/, the most recently
+    reviewed first and the undated last. The past at a glance, without opening it."""
+    dated = sorted((n for n in hist if as_date(n["reviewed"])),
+                   key=lambda n: (as_date(n["reviewed"]), n["id"]), reverse=True)
+    undated = sorted((n for n in hist if not as_date(n["reviewed"])), key=lambda n: n["id"])
+    out = ["# " + c.name + " - history", "",
+           "Generated on " + str(TODAY) + ". **Do not edit by hand.**", "",
+           "What already happened in this project, most recent first: "
+           + plural(len(hist), "note") + " in `" + HISTORY + "/`. "
+           + ("It stays" if len(hist) == 1 else "They stay") + " out of "
+           + V["index"] + ", and out of `search` unless you pass `--all`.", ""]
+    for n in dated + undated:
+        mark = "" if n["status"] == V["statuses"][0] else " `" + n["status"] + "`"
+        out.append("- " + (n["reviewed"] if as_date(n["reviewed"]) else "undated") + " · "
+                   + (n["type"] or "?") + " · [" + (n["title"] or n["id"]) + "]("
+                   + in_project(n) + ")" + mark)
+    return out
 
 
 def in_project(n):
-    """A note's file relative to its project: notes/x.md or history/x.md."""
+    """A note's file relative to its project: notes/x.md, todo/x.md, ideas/x.md
+    or history/x.md."""
     return n["path"].parent.name + "/" + n["id"] + ".md"
 
 
@@ -963,7 +1114,7 @@ HOWTO = [
 def write_view(path, text, force):
     """Write a generated view, unless the file on disk is the user's own.
 
-    The marker common to all four views is "**Do not edit by hand", and it is
+    The marker common to every view is "**Do not edit by hand", and it is
     independent of --lang because that line is hardcoded in English.
     """
     if path.exists() and not force:
@@ -990,19 +1141,21 @@ def write_views(notes, folders, base, V, force=False):
         group = [n for n in notes.values() if n["folder"] == c and not n["history"]]
         hist = [n for n in notes.values() if n["folder"] == c and n["history"]]
         out += ["## " + c.name + "  (" + plural(len(group), "note") + ")", ""]
-        out += history_line(hist, c.name + "/")
+        out += history_line(hist, c.name + "/", V)
         out += index_block(group, c.name + "/", V)
         op += ["# " + c.name, ""] + open_block(group, notes, None, V) + [""]
 
         pi = ["# " + c.name + " - index", "",
               "Generated on " + str(TODAY) + ". **Do not edit by hand.**", ""] + HOWTO
-        pi += history_line(hist, "")
+        pi += history_line(hist, "", V)
         pi += index_block(group, "", V)
         write_view(c / V["index"], "\n".join(pi) + "\n", force)
         po = ["# " + c.name + " - open", "",
               "Generated on " + str(TODAY) + ". **Do not edit by hand.**", ""]
         po += open_block(group, notes, c, V)
         write_view(c / V["open"], "\n".join(po) + "\n", force)
+        if hist:
+            write_view(c / V["history"], "\n".join(history_view(c, hist, V)) + "\n", force)
 
     out += oldest_block(notes, V)
 
@@ -1191,14 +1344,253 @@ def query(cmd, argv):
     return 0 if hits else 1
 
 
+# ---------------------------------------------------------------------------
+# new / review / close: the three writes a routine needs. They put the
+# template and today's date where they belong, so that nobody copies a note
+# from memory and gets its format wrong. They decide nothing: what a note says
+# is still up to whoever writes it.
+# ---------------------------------------------------------------------------
+RE_ID = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
+
+
+def read_raw(path):
+    """(text, bom, eol) of a file as it is, so it can be written back the same way."""
+    data = path.read_bytes()
+    bom = data.startswith(b"\xef\xbb\xbf")
+    text = (data[3:] if bom else data).decode("utf-8")
+    eol = "\r\n" if "\r\n" in text else "\n"
+    return text.replace("\r\n", "\n"), bom, eol
+
+
+def write_raw(path, text, bom, eol):
+    path.write_bytes((b"\xef\xbb\xbf" if bom else b"") + text.replace("\n", eol).encode("utf-8"))
+
+
+def set_fields(text, fields):
+    """Change top-level frontmatter fields ('key: value'). A field that is not
+    there is added at the end of the header."""
+    if not text.startswith("---") or "\n---" not in text[3:]:
+        raise ValueError("no closed frontmatter")
+    end = text.index("\n---", 3)
+    lines, rest = text[:end].split("\n"), text[end:]
+    for key, value in fields.items():
+        new = key + ": " + value if value else key + ":"
+        for k, line in enumerate(lines):
+            if k and re.match(re.escape(key) + r"\s*:", line):
+                lines[k] = new
+                break
+        else:
+            lines.append(new)
+    return "\n".join(lines) + rest
+
+
+def writer_args(prog, description):
+    ap = argparse.ArgumentParser(prog="notelint " + prog, description=description)
+    ap.add_argument("--base", default=".", help="base directory (default: .)")
+    ap.add_argument("--lang", choices=sorted(VOCAB), help="field vocabulary (default: detect)")
+    return ap
+
+
+def open_base(a):
+    """(base, V, projects), or an exit code when there is nothing to work on."""
+    base = Path(a.base).resolve()
+    if not base.is_dir():
+        print("Not a directory: " + str(base))
+        return 2
+    V = VOCAB[a.lang or detect_lang(base)]
+    return base, V, projects(base)
+
+
+def rel(path, base):
+    try:
+        return path.relative_to(base).as_posix()
+    except ValueError:
+        return str(path)
+
+
+def cmd_new(argv):
+    ap = writer_args("new", "Create a note from the template, dated today, in the folder "
+                            "its type belongs to (a todo in todo/, an idea in ideas/, the "
+                            "rest in notes/), and print its path.")
+    ap.add_argument("project")
+    ap.add_argument("type")
+    ap.add_argument("id", help="lowercase words joined by hyphens: the file name")
+    ap.add_argument("--title", required=True, help="the claim, in one line")
+    ap.add_argument("--folder", choices=LIVE_FOLDERS, help="file it somewhere else")
+    a = ap.parse_args(argv)
+    got = open_base(a)
+    if isinstance(got, int):
+        return got
+    base, V, everything = got
+    c = next((d for d in everything if fold(d.name) == fold(a.project)), None)
+    if c is None:
+        print("No such project" + (". Available: " + ", ".join(d.name for d in everything)
+                                   if everything else "") + ".")
+        print("To start one, create " + rel(base / a.project / NOTES, base) + "/ first.")
+        return 2
+    if a.type not in V["types"]:
+        print("The type is one of: " + ", ".join(V["types"]))
+        return 2
+    if not RE_ID.match(a.id):
+        print("An id is lowercase letters, digits and hyphens: " + a.id)
+        return 2
+    if len(a.title) > MAX_TITLE:
+        print("The title has " + str(len(a.title)) + " characters (limit " + str(MAX_TITLE)
+              + "): the title says what it is, the detail goes in the body.")
+        return 2
+    notes = load(everything, V)[0]
+    same = [n for n in notes.values() if n["id"] == a.id]
+    if same:
+        print("That id already exists: " + rel(same[0]["path"], base))
+        return 2
+    TODO, IDEA = V["types"][2], V["types"][3]
+    sub = a.folder or {TODO: TODO_DIR, IDEA: IDEAS_DIR}.get(a.type, NOTES)
+    dest = c / sub / (a.id + ".md")
+    F, today = V["fields"], str(TODAY)
+    head = (["---", F["title"] + ": " + a.title, F["type"] + ": " + a.type,
+             F["project"] + ": " + c.name, F["status"] + ": " + V["statuses"][0],
+             F["created"] + ": " + today, F["reviewed"] + ": " + today,
+             F["expires"] + ":", F["evidence"] + ":", F["links"] + ":"]
+            + ["  " + e + ": []" for e in V["edges"]] + ["---", ""])
+    body = (["## " + V["the_idea"], ""] if a.type == IDEA
+            else ["## " + V["what"], "", "## " + V["verify"], ""])
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    with open(str(dest), "w", encoding="utf-8", newline="\n") as fh:
+        fh.write("\n".join(head + body))
+    print(rel(dest, base))
+    if a.type == IDEA:
+        print("  Fill in '" + V["the_idea"] + "'.")
+    else:
+        print("  Fill in '" + V["what"] + "' and '" + V["verify"]
+              + "'; the linter reports the note until the second one says something.")
+    return 0
+
+
+def cmd_review(argv):
+    ap = writer_args("review", "Set 'reviewed' to today on notes you have just confirmed, "
+                               "and keep a fingerprint of what they depend on, so that "
+                               "confirming a dependency unchanged fires no propagation.")
+    ap.add_argument("ids", nargs="+", metavar="id")
+    a = ap.parse_args(argv)
+    got = open_base(a)
+    if isinstance(got, int):
+        return got
+    base, V, everything = got
+    notes = load(everything, V)[0]
+    missing = [i for i in a.ids if i not in notes]
+    if missing:
+        print("No such note: " + ", ".join(missing))
+        return 2
+    done = []
+    for i in a.ids:
+        n = notes[i]
+        try:
+            text, bom, eol = read_raw(n["path"])
+            text = set_fields(text, {V["fields"]["reviewed"]: str(TODAY)})
+        except (OSError, UnicodeDecodeError, ValueError) as e:
+            print("  " + i + ": left alone (" + str(e) + ")")
+            continue
+        write_raw(n["path"], text, bom, eol)
+        done.append(i)
+        print("  reviewed " + str(TODAY) + "  " + rel(n["path"], base))
+    if done:
+        save_fingerprints(base, notes, done, V)
+    return 0 if len(done) == len(a.ids) else 1
+
+
+def cmd_close(argv):
+    ap = writer_args("close", "Close a todo that is done: it becomes a fact in its own "
+                              "note, with the line that says until when it was a todo. "
+                              "If no live note depends on it, it goes to history/; if "
+                              "one does, or with --keep, to notes/.")
+    ap.add_argument("id")
+    ap.add_argument("--title", help="the new title, as a claim of what is now true")
+    ap.add_argument("--keep", action="store_true", help="file it in notes/, not history/")
+    a = ap.parse_args(argv)
+    got = open_base(a)
+    if isinstance(got, int):
+        return got
+    base, V, everything = got
+    notes = load(everything, V)[0]
+    n = notes.get(a.id)
+    if n is None:
+        print("No such note: " + a.id)
+        return 2
+    CURRENT, SUPERSEDED, DROPPED, UNVERIFIED = V["statuses"]
+    FACT, TODO = V["types"][1], V["types"][2]
+    DEPENDS, BLOCKS = V["edges"][0], V["edges"][2]
+    if n["unreadable"] or n["type"] != TODO or n["status"] not in (CURRENT, UNVERIFIED):
+        print(a.id + " is '" + n["type"] + "' '" + n["status"] + "': close is for a "
+              + TODO + " that is " + CURRENT + " or " + UNVERIFIED + ".")
+        return 2
+    if n["links"][BLOCKS]:
+        print(a.id + " blocks " + ", ".join(n["links"][BLOCKS]) + ". A " + FACT + " cannot "
+              "block: empty '" + BLOCKS + "' first if they no longer wait on it, or "
+              "supersede it with a new note.")
+        return 2
+    if a.title and len(a.title) > MAX_TITLE:
+        print("The title has " + str(len(a.title)) + " characters (limit " + str(MAX_TITLE) + ").")
+        return 2
+    F, today = V["fields"], str(TODAY)
+    try:
+        text, bom, eol = read_raw(n["path"])
+        fields = {F["type"]: FACT, F["reviewed"]: today}
+        if a.title:
+            fields[F["title"]] = a.title
+        text = set_fields(text, fields)
+    except (OSError, UnicodeDecodeError, ValueError) as e:
+        print(a.id + ": left alone (" + str(e) + ")")
+        return 2
+    end = text.index("\n---", 3) + 4
+    end = text.index("\n", end) + 1 if "\n" in text[end:] else len(text)
+    text = (text[:end] + "\n**" + V["was_todo"].format(date=today) + "**\n\n"
+            + text[end:].lstrip("\n"))
+    write_raw(n["path"], text, bom, eol)
+    # Where it ends up: if something live rests on it, it is still part of the
+    # present and stays in notes/; if nothing does, it is the past.
+    leaning = sorted(o["id"] for j, o in notes.items()
+                     if o is not n and not o["history"]
+                     and o["status"] not in (SUPERSEDED, DROPPED)
+                     and (a.id in o["links"][DEPENDS] or a.id in o["links"][BLOCKS]))
+    sub = NOTES if (leaning or a.keep) else HISTORY
+    dest = n["folder"] / sub / n["path"].name
+    if dest != n["path"]:
+        if dest.exists():
+            print("There is already a " + rel(dest, base) + ": it stays where it was.")
+            dest = n["path"]
+        else:
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            os.replace(str(n["path"]), str(dest))
+    closed = parse(dest, n["folder"], V)
+    closed["history"] = dest.parent.name == HISTORY
+    notes[a.id] = closed
+    save_fingerprints(base, notes, [a.id], V)
+    print(rel(dest, base))
+    if dest.parent.name == HISTORY:
+        print("  Filed in " + HISTORY + "/: nothing live depends on it.")
+    elif leaning:
+        print("  Stays in " + NOTES + "/: " + ", ".join(leaning)
+              + (" rests" if len(leaning) == 1 else " rest") + " on it.")
+    print("  It is a " + FACT + " now. Rewrite the title as a claim"
+          + (" (the new one is in)" if a.title else "")
+          + " and '" + V["verify"] + "' so it checks that the work is done.")
+    return 0
+
+
+WRITERS = {"new": cmd_new, "review": cmd_review, "close": cmd_close}
+
+
 def main(argv=None):
     argv = sys.argv[1:] if argv is None else list(argv)
     if argv and argv[0] in ("search", "open"):
         return query(argv[0], argv[1:])
+    if argv and argv[0] in WRITERS:
+        return WRITERS[argv[0]](argv[1:])
 
     ap = argparse.ArgumentParser(
         prog="notelint", description="A linter for a knowledge base of project notes.",
-        epilog="Lookups that lint nothing: 'notelint search -h' and 'notelint open -h'.")
+        epilog="Lookups that lint nothing: 'notelint search -h' and 'notelint open -h'. "
+               "Writes: 'notelint new -h', 'notelint review -h', 'notelint close -h'.")
     ap.add_argument("base", nargs="?", default=".", help="base directory (default: .)")
     ap.add_argument("--project", action="append", default=[],
                     help="report on this project only (repeatable)")
@@ -1207,6 +1599,8 @@ def main(argv=None):
     ap.add_argument("--force", action="store_true",
                     help="overwrite INDEX.md / OPEN.md even if this tool did not write them")
     ap.add_argument("--exit-zero", action="store_true", help="always exit 0")
+    ap.add_argument("--strict", action="store_true",
+                    help="exit 1 on reviews too, not only on errors")
     ap.add_argument("--verify", nargs="?", type=int, const=-1, metavar="DAYS",
                     help="print every 'How to verify' section, dependencies first; "
                          "with DAYS, only notes unreviewed for longer than that")
@@ -1269,37 +1663,53 @@ def main(argv=None):
               + ("   " + str(gone).rjust(3) + " in history" if past else ""))
     print("  " + "-" * 66)
 
+    buckets = {}
+    for cat, i, d in findings:
+        buckets.setdefault(cat, []).append((i, d))
+    known = set(ERRORS) | set(REVIEWS)
+    # A category missing from both lists still prints, under errors, rather than vanish.
+    error_cats = ERRORS + sorted(k for k in buckets if k not in known)
+    n_err = sum(len(buckets[c]) for c in error_cats if c in buckets)
+    n_rev = sum(len(buckets[c]) for c in REVIEWS if c in buckets)
     if not findings:
         print("")
         print("  No findings. Every link resolves, every claim has live evidence.")
         print("")
     else:
-        buckets = {}
-        for cat, i, d in findings:
-            buckets.setdefault(cat, []).append((i, d))
         pos = topo_order(everything_notes, V)
-        # A category missing from ORDER still prints, last, rather than vanish.
-        for cat in ORDER + sorted(k for k in buckets if k not in ORDER):
-            if cat not in buckets:
+        for level, total, cats, hint in (
+                ("ERRORS", n_err, error_cats, "written wrong or broken: these go to zero"),
+                ("REVIEWS", n_rev, REVIEWS, "a queue: work down a few each session, oldest first")):
+            if not total:
                 continue
             print("")
-            print("  " + cat.upper() + "  (" + str(len(buckets[cat])) + ")")
-            if cat in ("unreviewed", "propagation"):
-                # Dependencies first: reviewed in this order, they do not
-                # fire propagation findings at each other.
-                rows = sorted(buckets[cat], key=lambda x: (pos.get(x[0], 0), x[0]))
-            else:
-                rows = sorted(buckets[cat])
-            for i, d in rows:
-                print("    " + i.ljust(42) + " " + d)
+            print("  " + "=" * 66)
+            print("  " + level + " (" + str(total) + ")  - " + hint)
+            for cat in cats:
+                if cat not in buckets:
+                    continue
+                print("")
+                print("  " + cat.upper() + "  (" + str(len(buckets[cat])) + ")")
+                if cat in ("unreviewed", "propagation"):
+                    # Dependencies first: reviewed in this order, they do not
+                    # fire propagation findings at each other.
+                    rows = sorted(buckets[cat], key=lambda x: (pos.get(x[0], 0), x[0]))
+                else:
+                    rows = sorted(buckets[cat])
+                for i, d in rows:
+                    print("    " + i.ljust(42) + " " + d)
+        print("")
+        print("  errors: " + str(n_err) + " · reviews: " + str(n_rev))
         print("")
 
     if not a.report_only:
         write_views(everything_notes, everything, base, V, a.force)
-        print("  " + V["index"] + " and " + V["open"] + " regenerated.")
+        print("  " + V["index"] + " and " + V["open"] + " regenerated, and " + V["history"]
+              + " in each project with a history.")
         print("")
 
-    return 0 if (a.exit_zero or not findings) else 1
+    failing = n_err + (n_rev if a.strict else 0)
+    return 0 if (a.exit_zero or not failing) else 1
 
 
 if __name__ == "__main__":
