@@ -408,6 +408,16 @@ indistinguishable from no update at all.
 `docs/PROTOCOL.md` is the routine I use: run the linter before writing anything,
 fix notes rather than stack new ones, propagate, then run it again until clean.
 
+### When the work is done
+
+A session does not have to end with the agent's last message. Keep a `scripts/`
+folder in the base with whatever should happen afterwards — shut the machine down,
+put it to sleep, start a backup — and a note saying what each script does and when
+it is safe to run. Then the instruction is one line: "when you finish, run
+`scripts/shutdown.sh`". The agent closes the update first, reports what changed,
+and runs the script last. Anything that turns the machine off should start with a
+countdown you can still cancel.
+
 ## Make it yours
 
 Everything here is small on purpose. The linter is one file. No dependencies,

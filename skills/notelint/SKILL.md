@@ -113,6 +113,9 @@ five minutes, stop and say so in one line.
   and turn the day over hours early. A future `reviewed` is a format error.
 - **Report what changed** when you finish: notes touched, closed, opened. A
   silent update is indistinguishable from no update.
+- **If you were asked to run something when you finish** (a script that shuts
+  down, sleeps or backs up the machine), run it last: after the linter is clean
+  and after you have reported what changed.
 
 ## Why this skill is short
 
