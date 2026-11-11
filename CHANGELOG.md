@@ -4,6 +4,15 @@ What changes in each version of notelint. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- A third picture in the README, at the top of "Working with an AI agent": the
+  loop between you, your agent and the linter, and the other ways into the notes
+  (Obsidian or any Markdown editor, the file manager). Drawn by
+  [docs/make_images.py](docs/make_images.py), whose `--check` now covers it.
+
 ## [2.0.0] - 2026-11-11
 
 The report now tells apart what is broken from what only asks for a look, and
@@ -73,5 +82,6 @@ The first public release.
 - A one-command installer for Linux, macOS and Windows, and an agent skill for
   Claude Code.
 
+[Unreleased]: https://github.com/johan-socarras/notelint/compare/v2.0.0...HEAD
 [2.0.0]: https://github.com/johan-socarras/notelint/releases/tag/v2.0.0
 [1.0.0]: https://github.com/johan-socarras/notelint/releases/tag/v1.0.0

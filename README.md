@@ -425,6 +425,18 @@ it auto-detect); adding another is a dictionary entry in `VOCAB`.
 
 ## Working with an AI agent
 
+<p align="center">
+  <img src="docs/how-it-works.svg" width="984" alt="How notelint fits in: you give the task, your AI agent updates the notes, notelint reads them all and reports errors and reviews, and you review. Obsidian, any Markdown editor and the file manager open the same notes by hand">
+</p>
+
+<p align="center"><sub>The loop, and the other ways into the notes. Drawn by <a href="docs/make_images.py"><code>docs/make_images.py</code></a>; the icons are generic, nobody's logo.</sub></p>
+
+You give the task, the agent does the work and brings the notes up to date,
+notelint reads the whole base, and you review what changed. The notes stay plain
+Markdown files in ordinary folders, so the agent is not the only way in: Obsidian
+or any other Markdown editor opens them, and so does a text editor from the file
+manager on Windows or Ubuntu.
+
 This is where it started. If you hand an agent a folder of project docs, it will
 read stale ones with the same confidence as fresh ones — and a confident wrong
 answer costs more than no answer. Four properties matter here more than they do
