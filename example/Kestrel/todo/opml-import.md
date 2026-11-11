@@ -4,7 +4,7 @@ type: todo
 project: Kestrel
 status: current
 created: 2026-08-22
-reviewed: 2026-08-30
+reviewed: 2026-11-06
 expires:
 evidence:
 links:

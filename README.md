@@ -1,8 +1,22 @@
-# notelint
+<h1 align="center">notelint</h1>
 
-[![tests](https://github.com/johan-socarras/notelint/actions/workflows/tests.yml/badge.svg)](https://github.com/johan-socarras/notelint/actions/workflows/tests.yml)
+<p align="center">
+  <b>A linter for the notes you keep about a project.</b><br>
+  It finds broken links, dead evidence, stale facts and unclaimed files in a markdown knowledge base.
+</p>
 
-**A linter for the notes you keep about a project.**
+<p align="center">
+  <a href="https://github.com/johan-socarras/notelint/actions/workflows/tests.yml"><img alt="tests" src="https://github.com/johan-socarras/notelint/actions/workflows/tests.yml/badge.svg"></a>
+  <a href="https://github.com/johan-socarras/notelint/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/johan-socarras/notelint?color=3fb950"></a>
+  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue"></a>
+  <img alt="Python 3.8+, no dependencies" src="https://img.shields.io/badge/python-3.8%2B%20%C2%B7%20no%20dependencies-3776ab">
+</p>
+
+<p align="center">
+  <img src="docs/report.svg" width="736" alt="The report notelint prints for the bundled example: four errors (a format error, dead evidence, a hidden todo and an unclaimed folder) and one review (propagation)">
+</p>
+
+<p align="center"><sub>The bundled example, linted. The picture is the linter's own output, drawn by <a href="docs/make_images.py"><code>docs/make_images.py</code></a>.</sub></p>
 
 Documentation doesn't rot because people are lazy. It rots because nothing ever
 checks whether it is still true. A fact gets written down once, the thing it
@@ -13,46 +27,30 @@ someone fixed a typo.
 `notelint` treats a folder of markdown notes the way a linter treats source
 code: it reads the whole graph and reports what no longer holds together.
 
-```
-  notelint - 8 notes in 1 project, 1 in history   (2026-09-03)
-  ------------------------------------------------------------------
-  Kestrel                8 notes     2 open     0 unverified     1 in history
-  ------------------------------------------------------------------
-
-  ==================================================================
-  ERRORS (4)  - written wrong or broken: these go to zero
-
-  FORMAT  (1)
-    sqlite-over-postgres   absolute path into the base: write
-                           `evidence/bench-2026-08-20.md`, which works
-                           on any machine and in any clone
-
-  DEAD EVIDENCE  (1)
-    mystery-benchmark      evidence/fts-benchmark-2026-08-26.csv
-
-  HIDDEN TODO  (1)
-    retry-storm-incident   carries ⏳ but its type is 'incident':
-                           it never shows in OPEN.md
-
-  UNCLAIMED  (1)
-    Kestrel                evidence/screenshots
-
-  ==================================================================
-  REVIEWS (1)  - a queue: work down a few each session, oldest first
-
-  PROPAGATION  (1)
-    feed-poll-interval     sqlite-over-postgres was reviewed 2026-09-01,
-                           this is still at 2026-08-20
-
-  errors: 4 · reviews: 1
-```
-
 Findings come in two levels. **Errors** are things written wrong or broken —
 a dead link, a missing file, a malformed date — and they go to zero before the
 work is done. **Reviews** are things that ask for a look — a note nobody has
 confirmed in two months, a dependency that moved on — and they are a queue you
 work down a few at a time. Only errors fail the exit code, so a note turning
 sixty days old never breaks your CI.
+
+**Contents:** [Install](#install) ·
+[Try it](#or-try-it-without-installing-anything) ·
+[The idea](#the-idea) ·
+[Writing notes](#write-notes-with-the-commands-not-from-memory) ·
+[Typed links](#the-links-are-typed-and-that-is-the-point) ·
+[What it checks](#what-it-checks) ·
+[Flags](#flags) ·
+[Search](#ask-before-you-read) ·
+[History](#the-past-goes-to-history) ·
+[Generated views](#generated-views-never-hand-edited) ·
+[Projects and languages](#multi-project-multi-language) ·
+[AI agents](#working-with-an-ai-agent) ·
+[Design notes](#design-notes) ·
+[Tests](#tests)
+
+More: [Reference](docs/REFERENCE.md) · [The update routine](docs/PROTOCOL.md) ·
+[Changelog](CHANGELOG.md)
 
 ## Install
 
@@ -103,6 +101,46 @@ cd notelint
 python notelint.py example --report-only
 ```
 
+On Ubuntu, Debian and macOS the command is `python3`, not `python`; everything
+else on this page is the same.
+
+That prints the report in the picture above. Here it is at 80 columns
+(`--width 80`), on the day the example was last brought up to date:
+
+```
+  notelint - 8 notes in 1 project, 1 in history   (2026-11-10)
+  ------------------------------------------------------------------
+  Kestrel                8 notes     2 open     0 unverified     1 in history
+  ------------------------------------------------------------------
+
+  ==================================================================
+  ERRORS (4)  - written wrong or broken: these go to zero
+
+  FORMAT  (1)
+    sqlite-over-postgres   absolute path into the base: write
+                           `evidence/bench-2026-08-20.md`, which works on any
+                           machine and in any clone
+
+  DEAD EVIDENCE  (1)
+    mystery-benchmark      evidence/fts-benchmark-2026-08-26.csv
+
+  HIDDEN TODO  (1)
+    retry-storm-incident   carries ⏳ but its type is 'incident': it never shows
+                           in OPEN.md
+
+  UNCLAIMED  (1)
+    Kestrel                evidence/screenshots
+
+  ==================================================================
+  REVIEWS (1)  - a queue: work down a few each session, oldest first
+
+  PROPAGATION  (1)
+    feed-poll-interval     sqlite-over-postgres was reviewed 2026-11-09, this is
+                           still at 2026-11-02
+
+  errors: 4 · reviews: 1
+```
+
 `--report-only` leaves the tree alone. Drop it and the run also rewrites
 `INDEX.md`, `OPEN.md` and `HISTORY.md`, which are committed here so you can read
 them without running anything.
@@ -134,7 +172,7 @@ type: fact
 project: Kestrel
 status: current
 created: 2026-08-20
-reviewed: 2026-08-20
+reviewed: 2026-11-02
 expires:
 evidence:
   - evidence/bench-2026-08-20.md
@@ -182,7 +220,7 @@ about what the note says:
 ```bash
 python notelint.py new Kestrel todo opml-export --title "Export subscriptions as OPML" --base example
 python notelint.py review feed-poll-interval --base example
-python notelint.py close opml-import --title "Subscriptions import from OPML" --base example
+python notelint.py close opml-export --title "Subscriptions export as OPML" --base example
 ```
 
 - **`new <project> <type> <id> --title "…"`** writes the note from the template
@@ -209,6 +247,12 @@ linter can act on:
 | `supersedes` | This note replaces that one, which becomes `superseded`. |
 | `blocks` | That work can't start until this closes. The chains in `OPEN.md` are built from it. |
 | `related` | No direction, no consequence. |
+
+<p align="center">
+  <img src="docs/graph.svg" width="984" alt="The bundled example as notelint reads it: nine notes, the typed links between them, the files they cite, and the five planted faults marked on the notes and files they belong to">
+</p>
+
+<p align="center"><sub>The bundled example as the linter reads it, with its five planted faults. Also drawn by <a href="docs/make_images.py"><code>docs/make_images.py</code></a>, from what the linter loads and reports.</sub></p>
 
 ## What it checks
 
@@ -267,52 +311,9 @@ are the ones that make the base behave like a system instead of a folder:
   you have thirty seconds of context and two months of "what is this, and can I
   delete it?". The linter refuses to let material sit there unexplained.
 
-Material is claimed by **citing its path** — in `evidence:`, or between backticks
-in the body — not by mentioning its name. Citing something deep also claims the
-directories above it, so quoting `evidence/shots/panel.md` does not leave
-`evidence` looking unclaimed. And citing a directory by name claims what it
-holds — but only a directory you actually named: a parent that is merely
-implied by a deeper citation does not claim its other children, or one file
-would claim every sibling. Matching on the bare name was the earlier
-behaviour and it had a hole you could drive a project through: a new directory
-called `legal`, `src` or `tests` never showed up, because those words were
-already written somewhere in the notes for an unrelated reason.
-
-You can write a comment after the path, and it does not have to be a bare
-path on its own line. The comment starts at ` —` (em dash), ` (` or ` §`:
-
-```yaml
-evidence:
-  - evidence/bench-2026-08-20.md — the p95 numbers
-  - docs/HANDOFF.md §4
-  - reports/Q3 Report - final.pdf
-```
-
-A plain hyphen is **not** a delimiter, deliberately: too many real file names
-contain one, and `Q3 Report - final.pdf` has to stay citable as itself.
-
-Source code is the one kind of evidence that is *supposed* to change. Cite
-`src/poller.go` and every build would report `evidence changed` until nobody
-reads the report. End the line with `(existence only)` and the linter checks
-only that the file is still there; the note still ages like any other, and that
-is what gets it re-checked:
-
-```yaml
-evidence:
-  - src/poller.go (existence only)
-  - evidence/bench-2026-08-20.md
-```
-
-Keep the mark for code. A spec, a benchmark or a contract changing under a note
-is exactly what `evidence changed` is for. Spanish notes write it
-`(sólo que exista)`.
-
-One limit to know before it puzzles you: **between backticks in the body, the
-first segment of a path cannot contain a space.** A backticked span may be a
-shell command, and that guard is what stops one from claiming half the project.
-So a file sitting loose at the top of a project with a space in its name, like
-`Q3 Report.pdf`, is claimed from `evidence:`, where every line is a path and the
-guard does not apply.
+How material is claimed, a comment after a path, the `(existence only)` mark for
+source code and the one limit on paths with a space:
+[docs/REFERENCE.md](docs/REFERENCE.md#how-material-is-claimed).
 
 ## Flags
 
@@ -325,6 +326,7 @@ guard does not apply.
 | `--verify [DAYS]` | Print every "How to verify", dependencies first |
 | `--strict` | Exit 1 on reviews too, not only on errors |
 | `--exit-zero` | Always exit 0, for when you do not want CI to fail |
+| `--width N` | Wrap the findings at `N` columns. Default: the terminal's width, and one line each when piped or redirected, so `grep` sees a finding whole; `0` never wraps |
 | `--version` | Print the version and exit |
 
 ## Ask before you read
@@ -339,19 +341,8 @@ python notelint.py search --base example --project Kestrel --type todo
 python notelint.py open feed-poll-interval --base example         # prints the path, opens it
 ```
 
-`search` folds accents and looks in the title, the id and the body. Words of
-three letters or fewer match whole (`app` does not find `happy`); longer ones
-match inside a word (`instal` finds `installer`). Hits in the title come first,
-then current notes, then todos, then the most recently reviewed.
-`superseded` and `dropped` notes stay out unless you pass `--all` or ask for
-that `--status`, and notes in `history/` unless you pass `--all`; a last line
-says how many were left out. Exit code `1` means nothing matched.
-
-`open` takes an id, or words that match exactly one note, and hands the file to
-whatever your system opens it with — or `--with obsidian`, `--with code`. It
-always prints the path too, so an agent without a screen gets the answer.
-`--base` defaults to the current directory, so from a base made by the
-installer it is just `python tools/notelint.py search …`.
+How `search` matches and ranks, and what `open` does with a note:
+[docs/REFERENCE.md](docs/REFERENCE.md#search-and-open).
 
 ## The past goes to `history/`
 
@@ -361,19 +352,14 @@ before this one. Kept in `notes/`, they crowd the index, show up in every
 search, and age into `unreviewed` findings that nobody is ever going to clear.
 
 Each project can have a `history/` folder beside `notes/`. Moving a file there,
-same name, is the whole operation — and `close` does it for a finished todo. What belongs there is a closed note
-(`superseded` or `dropped`), or a `fact`, an `incident` or an `idea` about what
-already happened. A `todo`, a `decision` or a `reference` still in force, or an
-`unverified` note, is present work, and putting one there is a `format`
-finding.
+same name, is the whole operation — and `close` does it for a finished todo.
+What belongs there is a closed note (`superseded` or `dropped`), or a `fact`, an
+`incident` or an `idea` about what already happened. A `todo`, a `decision` or a
+`reference` still in force, or an `unverified` note, is present work, and
+putting one there is a `format` finding.
 
-The linter still loads it, so every link into it resolves, and checks its
-format and its links. Nothing else: it does not age, its evidence is not
-watched, and it is left out of `INDEX.md` (one line says how many and where),
-`OPEN.md`, `--verify` and `search` without `--all`. The one new finding is
-`depends on history`: a live note that rests on one of these. To see the past at
-a glance, each project with a history gets a generated `HISTORY.md`: one line
-per note, most recently reviewed first.
+What the linter still does with a note in `history/`, and what it stops doing:
+[docs/REFERENCE.md](docs/REFERENCE.md#what-the-linter-does-with-history).
 
 The example ships one: Kestrel's dropped mobile app lives in
 `example/Kestrel/history/`.
@@ -382,11 +368,11 @@ The example ships one: Kestrel's dropped mobile app lives in
 
 Each run rewrites `INDEX.md` (everything, by project and type), `OPEN.md`
 (the work list) and, where there is a history, `HISTORY.md` (the past). Delete
-them and they come back identical. A file of your own
-already sitting under either name is left alone — the linter only replaces what
-it wrote itself, unless you pass `--force`. You change what's in
-them by editing a note's `status`, not by editing the list — which is exactly
-why the list can't drift from reality.
+them and they come back identical. A file of your own already sitting under one
+of those names is left alone — the linter only replaces what it wrote itself,
+unless you pass `--force`. You change what's in them by editing a note's
+`status`, not by editing the list — which is exactly why the list can't drift
+from reality.
 
 `INDEX.md` ends with **the eight longest unreviewed**, across every project.
 That turns the 60-day cliff into a trickle: confirm a few each session and the
@@ -400,9 +386,9 @@ it draws the order the work actually has to happen in:
 ```markdown
 ## Work chains (1)
 
-- [Ship version 0.9.0](notes/ship-090.md)  <- start here
-  - [Run the acceptance suite](notes/run-tests.md)
-    - [Rewrite the pricing page](notes/update-site.md)
+- [Ship version 0.9.0](todo/ship-090.md)  <- start here
+  - [Run the acceptance suite](todo/run-tests.md)
+    - [Rewrite the pricing page](todo/update-site.md)
 ```
 
 This is how a conditional plan gets recorded without turning the knowledge base

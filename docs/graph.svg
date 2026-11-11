@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 984 542" width="984" height="542" role="img" aria-label="The bundled example as notelint reads it: nine notes, the typed links between them, the files they cite, and the five planted faults">
+<defs><marker id="tip" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 Z" fill="#e6edf3"/></marker></defs>
+<rect width="984" height="542" rx="10" fill="#0d1117" stroke="#30363d"/>
+<path d="M152.0 220.0 L152.0 282.0" stroke="#6e7681" stroke-width="1.2"/>
+<path d="M832.0 282.0 L832.0 220.0" stroke="#6e7681" stroke-width="1.2"/>
+<path d="M747.0 282.0 L577.0 220.0" stroke="#6e7681" stroke-width="1.2"/>
+<path d="M492.0 220.0 L492.0 282.0" stroke="#6e7681" stroke-width="1.2"/>
+<path d="M152.0 158.0 L152.0 96.0" stroke="#8b949e" stroke-width="1.2" stroke-dasharray="2 5" stroke-linecap="round"/>
+<path d="M832.0 158.0 L832.0 96.0" stroke="#8b949e" stroke-width="1.2" stroke-dasharray="2 5" stroke-linecap="round"/>
+<path d="M407.0 158.0 L237.0 96.0" stroke="#8b949e" stroke-width="1.2" stroke-dasharray="2 5" stroke-linecap="round"/>
+<path d="M270.0 437.0 L374.0 437.0" stroke="#e6edf3" stroke-width="1.6" marker-end="url(#tip)"/>
+<text x="322.0" y="430.0" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="11.5" fill="#e6edf3">blocks</text>
+<path d="M270.0 189.0 L374.0 189.0" stroke="#e6edf3" stroke-width="1.6" marker-end="url(#tip)"/>
+<text x="322.0" y="182.0" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="11.5" fill="#e6edf3">depends-on</text>
+<rect x="34.0" y="406.0" width="236" height="62" rx="8" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+<text x="48.0" y="432.0" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="13.5" font-weight="600" fill="#e6edf3">auth-model-undecided</text>
+<text x="48.0" y="452.0" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" fill="#8b949e">todo · todo/</text>
+<rect x="714.0" y="406.0" width="236" height="62" rx="8" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+<text x="728.0" y="432.0" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="13.5" font-weight="600" fill="#8b949e">drop-native-mobile-app</text>
+<text x="728.0" y="452.0" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" fill="#8b949e">decision · history/</text>
+<rect x="34.0" y="34.0" width="236" height="62" rx="8" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+<text x="48.0" y="60.0" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="13.5" font-weight="600" fill="#e6edf3">bench-2026-08-20.md</text>
+<text x="48.0" y="80.0" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" fill="#8b949e">evidence/ · on disk</text>
+<rect x="714.0" y="34.0" width="236" height="62" rx="8" fill="#161b22" stroke="#30363d" stroke-width="1" stroke-dasharray="6 4"/>
+<text x="728.0" y="60.0" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="12.0" font-weight="600" fill="#e6edf3">fts-benchmark-2026-08-26.csv</text>
+<text x="728.0" y="80.0" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" fill="#8b949e">evidence/ · not on disk</text>
+<rect x="374.0" y="34.0" width="236" height="62" rx="8" fill="#161b22" stroke="#f85149" stroke-width="1.8"/>
+<text x="388.0" y="60.0" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="13.5" font-weight="600" fill="#e6edf3">screenshots/</text>
+<text x="388.0" y="80.0" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" fill="#8b949e">evidence/ · on disk</text>
+<rect x="519.2" y="23.0" width="80.8" height="22" rx="11" fill="#0d1117" stroke="#f85149" stroke-width="1.4"/>
+<text x="559.6" y="38.0" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="11" font-weight="600" fill="#f85149">UNCLAIMED</text>
+<rect x="34.0" y="158.0" width="236" height="62" rx="8" fill="#161b22" stroke="#d29922" stroke-width="1.8"/>
+<text x="48.0" y="184.0" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="13.5" font-weight="600" fill="#e6edf3">feed-poll-interval</text>
+<text x="48.0" y="204.0" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" fill="#8b949e">fact · notes/</text>
+<rect x="164.8" y="147.0" width="95.2" height="22" rx="11" fill="#0d1117" stroke="#d29922" stroke-width="1.4"/>
+<text x="212.4" y="162.0" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="11" font-weight="600" fill="#d29922">PROPAGATION</text>
+<rect x="714.0" y="282.0" width="236" height="62" rx="8" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+<text x="728.0" y="308.0" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="13.5" font-weight="600" fill="#e6edf3">full-text-search</text>
+<text x="728.0" y="328.0" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" fill="#8b949e">idea · ideas/</text>
+<rect x="714.0" y="158.0" width="236" height="62" rx="8" fill="#161b22" stroke="#f85149" stroke-width="1.8"/>
+<text x="728.0" y="184.0" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="13.5" font-weight="600" fill="#e6edf3">mystery-benchmark</text>
+<text x="728.0" y="204.0" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" fill="#8b949e">fact · notes/</text>
+<rect x="830.4" y="147.0" width="109.6" height="22" rx="11" fill="#0d1117" stroke="#f85149" stroke-width="1.4"/>
+<text x="885.2" y="162.0" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="11" font-weight="600" fill="#f85149">DEAD EVIDENCE</text>
+<rect x="374.0" y="406.0" width="236" height="62" rx="8" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+<text x="388.0" y="432.0" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="13.5" font-weight="600" fill="#e6edf3">opml-import</text>
+<text x="388.0" y="452.0" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" fill="#8b949e">todo · todo/</text>
+<rect x="34.0" y="282.0" width="236" height="62" rx="8" fill="#161b22" stroke="#f85149" stroke-width="1.8"/>
+<text x="48.0" y="308.0" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="13.5" font-weight="600" fill="#e6edf3">retry-storm-incident</text>
+<text x="48.0" y="328.0" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" fill="#8b949e">incident · notes/</text>
+<rect x="164.8" y="271.0" width="95.2" height="22" rx="11" fill="#0d1117" stroke="#f85149" stroke-width="1.4"/>
+<text x="212.4" y="286.0" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="11" font-weight="600" fill="#f85149">HIDDEN TODO</text>
+<rect x="374.0" y="158.0" width="236" height="62" rx="8" fill="#161b22" stroke="#f85149" stroke-width="1.8"/>
+<text x="388.0" y="184.0" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="13.5" font-weight="600" fill="#e6edf3">sqlite-over-postgres</text>
+<text x="388.0" y="204.0" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" fill="#8b949e">decision · notes/</text>
+<rect x="540.8" y="147.0" width="59.2" height="22" rx="11" fill="#0d1117" stroke="#f85149" stroke-width="1.4"/>
+<text x="570.4" y="162.0" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="11" font-weight="600" fill="#f85149">FORMAT</text>
+<rect x="374.0" y="282.0" width="236" height="62" rx="8" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+<text x="388.0" y="308.0" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="13.5" font-weight="600" fill="#e6edf3">what-kestrel-is</text>
+<text x="388.0" y="328.0" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" fill="#8b949e">reference · notes/</text>
+<path d="M34 508 h34" stroke="#e6edf3" stroke-width="1.6" marker-end="url(#tip)"/>
+<text x="78" y="512" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" fill="#8b949e">depends-on, blocks: a link with a consequence</text>
+<path d="M396 508 h34" stroke="#6e7681" stroke-width="1.2"/>
+<text x="440" y="512" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" fill="#8b949e">related</text>
+<path d="M515 508 h34" stroke="#8b949e" stroke-width="1.2" stroke-dasharray="2 5" stroke-linecap="round"/>
+<text x="559" y="512" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" fill="#8b949e">cites as evidence</text>
+</svg>

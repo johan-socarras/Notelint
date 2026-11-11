@@ -11,7 +11,8 @@ cannot do: deciding what is true, and writing it down.
 
 ## 1. Find the base
 
-A knowledge base is a directory whose subdirectories contain a `notes/` folder:
+A knowledge base is a directory whose subdirectories each hold a `notes/`,
+`todo/` or `ideas/` folder:
 
 ```
 <base>/
@@ -54,9 +55,9 @@ there. Account for each line like any other fact, then move it under
 
 Eight steps and three rules. In a base made by the installer it is
 `<base>/PROTOCOL.md`; in a clone of the repository it is `docs/PROTOCOL.md`.
-**Read it and obey it**; do not improvise a shortened version. In particular it is what tells you to *fix* an
-existing note rather than stack a new one on top, and to propagate a change to
-whatever declared a dependency on it.
+**Read it and obey it**; do not improvise a shortened version. In particular it
+is what tells you to *fix* an existing note rather than stack a new one on top,
+and to propagate a change to whatever declared a dependency on it.
 
 **Write notes with the commands, never from memory or by copying another
 note:** `new <project> <type> <id> --title "…"` creates one from the template,

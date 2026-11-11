@@ -78,30 +78,31 @@ verify" has to be the last section, and the linter says so if it is not._
   `unverified` (needs checking; it **keeps blocking** whatever it blocked, and
   checking it is the first job, not treating it as closed).
   **A todo that got done is closed in its own note**, without creating another:
-  `notelint close <id>` makes `type` a `fact`, adds the line "Was a todo until
-  YYYY-MM-DD" and files it in `history/` (or in `notes/` while a live note rests
-  on it); you rewrite the title as a statement and make "How to verify" check
-  that it is done. The file is not renamed (links go by id). Two exceptions: if it has a
-  non-empty `blocks`, clear that first or close it as `superseded` plus a new
-  note; and if the outcome carries more than the todo note can hold, also
-  `superseded` plus a new note.
+  `python tools/notelint.py close <id>` makes `type` a `fact`, adds the line
+  "Was a todo until YYYY-MM-DD" and files it in `history/` (or in `notes/` while
+  a live note rests on it); you rewrite the title as a statement and make "How
+  to verify" check that it is done. The file is not renamed (links go by id).
+  Two exceptions: if it has a non-empty `blocks`, clear that first or close it
+  as `superseded` plus a new note; and if the outcome carries more than the todo
+  note can hold, also `superseded` plus a new note.
   **What no longer describes the present moves to the project's `history/`**,
   same file name: a closed note, or a `fact`, `incident` or `idea` about what
   already happened. It keeps its links and stops aging.
 - **expires** — optional. After this date the claim must be re-verified.
 - **reviewed** — bump it whenever someone confirms the note still holds, even if
-  not a word changes: `notelint review <id>`. After 60 days the linter flags it (180 for a `reference`,
-  an `incident`, or a `decision` with `depends-on`; an `idea` never ages). An
-  `unverified` note left more than 14 days is reported too. Write the date the
-  linter prints in its header.
+  not a word changes: `python tools/notelint.py review <id>`. After 60 days the
+  linter flags it (180 for a `reference`, an `incident`, or a `decision` with
+  `depends-on`; an `idea` never ages). An `unverified` note left more than 14
+  days is reported too. Write the date the linter prints in its header.
 - **installed-version** — optional, and only on the one note that says which
   build of the project is installed, as `N` or `vN`. With it, a current todo
   whose name or title stayed on an older build is reported.
 - **evidence** — paths relative to the project or the base, or URLs. An absolute
   path into the base is a `format` error: it works only on the machine that
-  wrote it. Absolute paths are for files that live outside the base. It is also what **claims** material: for something to stop showing under
-  `UNCLAIMED`, cite its path here (or between backticks in the body); naming it
-  is not enough. The linter checks that **paths** exist on disk, and reports
+  wrote it. Absolute paths are for files that live outside the base. It is also
+  what **claims** material: for something to stop showing under `UNCLAIMED`,
+  cite its path here (or between backticks in the body); naming it is not
+  enough. The linter checks that **paths** exist on disk, and reports
   one that changed after the note was last reviewed; it **does not check
   URLs** — any address passes, a dead one included. A line ending in
   `(existence only)` is only checked for existence: that is the mark for source
@@ -119,7 +120,7 @@ verify" has to be the last section, and the linter says so if it is not._
 
 | Link | Means |
 |---|---|
-| `depends-on` | If that note **is reviewed or changes**, this one needs re-reading. The linter reports it as `PROPAGATION`. |
+| `depends-on` | If that note **changes**, this one needs re-reading. The linter reports it as `PROPAGATION` when that note was reviewed after this one and its body is no longer the one this note was confirmed against. |
 | `supersedes` | This note makes that one obsolete, and that one becomes `superseded` (or was already `dropped`). Pointing `supersedes` at a note that is still open is an error. |
 | `blocks` | That work **cannot start** until this closes. Not "better afterwards", not "same topic": that is `related`. It is written on the blocking note; if, while writing a todo, you see it waits on another, go to that other note and put the link there instead of leaving it in prose. **Only `todo` notes block**: a `fact` or a `decision` that blocks holds its target forever. `OPEN.md` is built from it. |
 | `evidence` | Not a link: it has its own field, above, and the linter checks that its paths exist. |

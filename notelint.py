@@ -6,9 +6,9 @@ notelint - a linter for a knowledge base of project notes.
 Documentation does not rot because people are lazy. It rots because nothing
 ever checks whether it is still true. notelint checks.
 
-Point it at a directory. Every subdirectory that contains a `notes/` folder is
-a project, with its open work in `todo/` and its loose ideas in `ideas/`; a
-`history/` folder beside them holds the notes that are past. Notes are global
+Point it at a directory. Every subdirectory with a `notes/`, `todo/` or
+`ideas/` folder is a project: what is true today, the open work and the loose
+ideas. A `history/` folder beside them holds the notes that are past. Notes are global
 across projects (links may cross), but each project also gets its own index,
 its own list of open work and, if it has a past, its own history.
 
@@ -17,6 +17,7 @@ its own list of open work and, if it has a past, its own history.
     python notelint.py --report-only   # do not write INDEX.md / OPEN.md / HISTORY.md
     python notelint.py --lang es       # Spanish field names
     python notelint.py --project Alpha # report on one project only
+    python notelint.py --width 80      # wrap the findings at 80 columns
 
     python notelint.py search poll interval --project Alpha --type todo
         # find notes by words and filters; lints nothing, writes nothing
@@ -35,9 +36,13 @@ go to zero. REVIEWS ask for a look and are a queue. Exit code is 1 when there
 are errors, so it works in CI; --strict also fails on reviews, and --exit-zero
 always exits 0.
 
+On a terminal the findings wrap to its width. Piped or redirected, each one
+stays on a single line, so grep and diff see whole findings; --width N fixes
+the width either way, and --width 0 never wraps.
+
 No dependencies. Python 3.8+.
 """
-import os, sys, re, json, hashlib, datetime, unicodedata, argparse
+import os, sys, re, json, shutil, hashlib, datetime, textwrap, unicodedata, argparse
 from pathlib import Path
 
 __version__ = "2.0.0"
@@ -1315,7 +1320,8 @@ def query(cmd, argv):
     V = VOCAB[a.lang or detect_lang(base)]
     everything = projects(base)
     if not everything:
-        print("No projects found: no directory under " + str(base) + " has a notes/ folder.")
+        print("No projects found: no directory under " + str(base)
+              + " has a notes/, todo/ or ideas/ folder.")
         return 2
     notes = load(everything, V)[0]
 
@@ -1548,11 +1554,11 @@ def cmd_close(argv):
     write_raw(n["path"], text, bom, eol)
     # Where it ends up: if something live rests on it, it is still part of the
     # present and stays in notes/; if nothing does, it is the past.
-    leaning = sorted(o["id"] for j, o in notes.items()
-                     if o is not n and not o["history"]
-                     and o["status"] not in (SUPERSEDED, DROPPED)
-                     and (a.id in o["links"][DEPENDS] or a.id in o["links"][BLOCKS]))
-    sub = NOTES if (leaning or a.keep) else HISTORY
+    live = [o for o in notes.values() if o is not n and not o["history"]
+            and o["status"] not in (SUPERSEDED, DROPPED)]
+    resting = sorted(o["id"] for o in live if a.id in o["links"][DEPENDS])
+    holding = sorted(o["id"] for o in live if a.id in o["links"][BLOCKS])
+    sub = NOTES if (resting or holding or a.keep) else HISTORY
     dest = n["folder"] / sub / n["path"].name
     if dest != n["path"]:
         if dest.exists():
@@ -1568,9 +1574,18 @@ def cmd_close(argv):
     print(rel(dest, base))
     if dest.parent.name == HISTORY:
         print("  Filed in " + HISTORY + "/: nothing live depends on it.")
-    elif leaning:
-        print("  Stays in " + NOTES + "/: " + ", ".join(leaning)
-              + (" rests" if len(leaning) == 1 else " rest") + " on it.")
+    elif resting or holding:
+        # Two different reasons, and only the first is "rests on it": a note
+        # that still names this one under 'blocks' does not depend on it.
+        why = []
+        if resting:
+            why.append(", ".join(resting)
+                       + (" rests" if len(resting) == 1 else " rest") + " on it")
+        if holding:
+            why.append(", ".join(holding)
+                       + (" still lists" if len(holding) == 1 else " still list")
+                       + " it under '" + BLOCKS + "'")
+        print("  Stays in " + NOTES + "/: " + " and ".join(why) + ".")
     print("  It is a " + FACT + " now. Rewrite the title as a claim"
           + (" (the new one is in)" if a.title else "")
           + " and '" + V["verify"] + "' so it checks that the work is done.")
@@ -1578,6 +1593,46 @@ def cmd_close(argv):
 
 
 WRITERS = {"new": cmd_new, "review": cmd_review, "close": cmd_close}
+
+# The id column of the findings when nothing wraps them, and the narrowest a
+# wrapped message may get: below that it reads worse than a line that runs over.
+ID_COLUMN, NARROWEST = 42, 24
+
+
+def report_width(asked):
+    """How wide the findings may run, or None for one line each. --width says
+    so outright (0: never wrap). Without it a terminal gets its own width, and
+    anything else - a pipe, a file, a CI log - gets whole lines, so that grep
+    and diff see one finding per line."""
+    if asked is not None:
+        return asked or None
+    try:
+        if sys.stdout.isatty():
+            return shutil.get_terminal_size().columns
+    except (AttributeError, ValueError, OSError):
+        pass
+    return None
+
+
+def finding_lines(rows, width, column):
+    """The printed lines of one category. Unwrapped, the layout the report
+    has always had. Wrapped, the id column shrinks to `column` - the longest
+    id in the report - and a message that runs past `width` continues under
+    its own start. Words are never split, so a path stays in one piece even
+    when that leaves a line too long."""
+    if not width:
+        return ["    " + i.ljust(ID_COLUMN) + " " + d for i, d in rows]
+    start = 4 + column
+    lines = []
+    for i, d in rows:
+        # A wide character (the hourglass of a hidden todo) takes two cells.
+        wide = sum(1 for ch in d if unicodedata.east_asian_width(ch) in "WF")
+        room = max(width - start - wide, NARROWEST)
+        parts = textwrap.wrap(d, room, break_long_words=False,
+                              break_on_hyphens=False) or [""]
+        lines.append(("    " + (i + "  ").ljust(column) + parts[0]).rstrip())
+        lines.extend(" " * start + more for more in parts[1:])
+    return lines
 
 
 def main(argv=None):
@@ -1595,17 +1650,24 @@ def main(argv=None):
     ap.add_argument("--project", action="append", default=[],
                     help="report on this project only (repeatable)")
     ap.add_argument("--lang", choices=sorted(VOCAB), help="field vocabulary (default: detect)")
-    ap.add_argument("--report-only", action="store_true", help="do not write the indexes")
+    ap.add_argument("--report-only", action="store_true",
+                    help="do not write INDEX.md / OPEN.md / HISTORY.md")
     ap.add_argument("--force", action="store_true",
-                    help="overwrite INDEX.md / OPEN.md even if this tool did not write them")
+                    help="overwrite INDEX.md / OPEN.md / HISTORY.md even if this tool "
+                         "did not write them")
     ap.add_argument("--exit-zero", action="store_true", help="always exit 0")
     ap.add_argument("--strict", action="store_true",
                     help="exit 1 on reviews too, not only on errors")
     ap.add_argument("--verify", nargs="?", type=int, const=-1, metavar="DAYS",
                     help="print every 'How to verify' section, dependencies first; "
                          "with DAYS, only notes unreviewed for longer than that")
+    ap.add_argument("--width", type=int, metavar="N",
+                    help="wrap the findings at N columns (default: the terminal's width; "
+                         "one line each when piped or redirected). 0 never wraps")
     ap.add_argument("--version", action="version", version="notelint " + __version__)
     a = ap.parse_args(argv)
+    if a.width is not None and a.width < 0:
+        ap.error("--width takes 0 or a positive number of columns")
 
     base = Path(a.base).resolve()
     if not base.is_dir():
@@ -1615,7 +1677,8 @@ def main(argv=None):
 
     everything = projects(base)
     if not everything:
-        print("No projects found: no directory under " + str(base) + " has a notes/ folder.")
+        print("No projects found: no directory under " + str(base)
+              + " has a notes/, todo/ or ideas/ folder.")
         return 2
     folders = everything
     if a.project:
@@ -1677,6 +1740,9 @@ def main(argv=None):
         print("")
     else:
         pos = topo_order(everything_notes, V)
+        width = report_width(a.width)
+        # One column for the whole report, so every category lines up.
+        column = min(max(len(i) for _, i, _ in findings), ID_COLUMN) + 3
         for level, total, cats, hint in (
                 ("ERRORS", n_err, error_cats, "written wrong or broken: these go to zero"),
                 ("REVIEWS", n_rev, REVIEWS, "a queue: work down a few each session, oldest first")):
@@ -1696,8 +1762,8 @@ def main(argv=None):
                     rows = sorted(buckets[cat], key=lambda x: (pos.get(x[0], 0), x[0]))
                 else:
                     rows = sorted(buckets[cat])
-                for i, d in rows:
-                    print("    " + i.ljust(42) + " " + d)
+                for line in finding_lines(rows, width, column):
+                    print(line)
         print("")
         print("  errors: " + str(n_err) + " · reviews: " + str(n_rev))
         print("")

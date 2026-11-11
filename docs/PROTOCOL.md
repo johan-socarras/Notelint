@@ -211,7 +211,7 @@ modification times can be trusted.
 It finds broken links, evidence that vanished or changed, expired and
 unreviewed notes, doubts left unresolved, zombies, blocks that can never lift,
 pending propagation, todos named after a past version, notes without a way to
-verify them, notes grown past one claim, live notes resting on history, and
+verify them, notes grown past one claim, live notes resting on history,
 unclaimed material, and evidence written as an absolute path. **It does not know
 whether a note is true, and it writes only what `new`, `review` and `close` are
 asked to.** What a note says stays human — or agent — work. What the tool

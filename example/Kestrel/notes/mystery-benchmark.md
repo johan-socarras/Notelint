@@ -4,7 +4,7 @@ type: fact
 project: Kestrel
 status: current
 created: 2026-08-26
-reviewed: 2026-08-30
+reviewed: 2026-11-06
 expires:
 evidence:
   - evidence/fts-benchmark-2026-08-26.csv

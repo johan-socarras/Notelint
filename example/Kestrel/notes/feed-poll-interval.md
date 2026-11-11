@@ -4,7 +4,7 @@ type: fact
 project: Kestrel
 status: current
 created: 2026-08-20
-reviewed: 2026-08-20
+reviewed: 2026-11-02
 expires:
 evidence:
   - evidence/bench-2026-08-20.md

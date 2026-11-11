@@ -1454,6 +1454,99 @@ def close_refuses_what_is_not_an_open_todo_or_still_blocks(base):
     assert (base / "Alpha" / "todo" / "first.md").is_file(), "refused means untouched"
 
 
+@case
+def close_says_why_a_blocked_todo_stays_in_notes(base):
+    note(base, "Alpha", "first", title="First this", type="todo", where="todo",
+         blocks="later")
+    note(base, "Alpha", "later", title="Then this", type="todo", where="todo")
+    note(base, "Alpha", "after", title="And this after", type="todo", where="todo",
+         depends="later")
+    rc, out = cli(base, "close", "later")
+    assert rc == 0, out
+    assert (base / "Alpha" / "notes" / "later.md").is_file()
+    assert "after rests on it" in out, "a note that depends on it does rest on it"
+    assert "first still lists it under 'blocks'" in out, \
+        "the note that blocks it does not rest on it, and the message must not say so"
+    assert "first rests" not in out and "after, first" not in out
+
+
+# --------------------------------------------------------------------------
+# The width of the report.
+# --------------------------------------------------------------------------
+
+
+def a_long_finding(base):
+    old = str(TODAY - datetime.timedelta(days=10))
+    note(base, "Alpha", "one", reviewed=old, depends="two")
+    note(base, "Alpha", "two", title="A different unrelated claim")
+
+
+@case
+def a_finding_stays_on_one_line_when_the_report_is_piped(base):
+    a_long_finding(base)
+    rc, out = quiet(notelint.main, [str(base), "--report-only"])
+    rows = [l for l in out.splitlines() if "two was reviewed" in l]
+    assert len(rows) == 1 and rows[0].endswith("this is still at " + str(
+        TODAY - datetime.timedelta(days=10))), \
+        "captured output is not a terminal: grep and diff must see the finding whole"
+    assert quiet(notelint.main, [str(base), "--report-only", "--width", "0"])[1] == out, \
+        "--width 0 never wraps, whatever the output is"
+
+
+@case
+def width_wraps_a_finding_under_its_own_start(base):
+    a_long_finding(base)
+    whole = quiet(notelint.main, [str(base), "--report-only"])[1]
+    message = next(l for l in whole.splitlines()
+                   if "two was reviewed" in l).split(None, 1)[1]
+    rc, out = quiet(notelint.main, [str(base), "--report-only", "--width", "50"])
+    assert rc == 0, "wrapping changes the layout, never the exit code"
+    lines = out.splitlines()
+    at = next(k for k, l in enumerate(lines) if "two was reviewed" in l)
+    col = lines[at].index("two was reviewed")
+    got = [lines[at]]
+    while lines[at + len(got)].startswith(" " * col) and lines[at + len(got)].strip():
+        got.append(lines[at + len(got)])
+    assert len(got) > 1, "a message longer than the width has to wrap"
+    assert all(len(l) <= 50 for l in got), "no line runs past the width asked for"
+    assert all(l[:col].strip() == "" for l in got[1:]), \
+        "a continuation starts where the message started"
+    assert " ".join(l[col:] for l in got) == message, "wrapping loses no word"
+
+
+@case
+def width_never_splits_a_path(base):
+    long_path = "evidence/" + "a-very-long-directory-name/" * 3 + "gone.md"
+    note(base, "Alpha", "one", evidence=[long_path])
+    rc, out = quiet(notelint.main, [str(base), "--report-only", "--width", "40"])
+    assert long_path in out, "a path cut in two can no longer be copied or found"
+
+
+@case
+def the_readme_shows_what_the_linter_prints(base):
+    """The report in the README is not typed by hand: it is this run, on the
+    day it names, at the width it names. Only inside a clone, where the two
+    checks that read modification times stay quiet (see `under_git`)."""
+    import re
+    root = Path(notelint.__file__).resolve().parent
+    readme, example = root / "README.md", root / "example"
+    if not (readme.is_file() and example.is_dir() and notelint.under_git(example)):
+        return
+    shown = re.search(r"```\n(  notelint - .*?)\n```",
+                      readme.read_text(encoding="utf-8"), re.S)
+    assert shown, "the README no longer carries a sample report"
+    day = re.search(r"\((\d{4})-(\d\d)-(\d\d)\)", shown.group(1))
+    real = notelint.TODAY
+    notelint.TODAY = datetime.date(*map(int, day.groups()))
+    try:
+        rc, out = quiet(notelint.main, [str(example), "--report-only", "--width", "80"])
+    finally:
+        notelint.TODAY = real
+    assert rc == 1, "the example ships errors on purpose"
+    assert out.strip("\n") == shown.group(1), \
+        "the README's sample report is not what the linter prints for example/"
+
+
 def main():
     passed = failed = 0
     for fn in CASES:

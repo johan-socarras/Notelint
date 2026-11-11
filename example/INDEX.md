@@ -44,11 +44,11 @@ _In `Kestrel/history/`: 1 note that no longer describes the present, listed in `
 Across every project. Reviewing a few each session keeps the 60-day
 warning from arriving all at once.
 
-- [Feeds are polled every 5 minutes, not every minute](Kestrel/notes/feed-poll-interval.md) _(Kestrel)_ - reviewed 2026-08-20  (82d)
-- [Decide the auth model before anything exposes a port](Kestrel/todo/auth-model-undecided.md) _(Kestrel)_ - reviewed 2026-08-30  (72d)
-- [Full-text search costs about 90 MB of RAM at 10k articles](Kestrel/notes/mystery-benchmark.md) _(Kestrel)_ - reviewed 2026-08-30  (72d)
-- [Import subscriptions from an OPML file](Kestrel/todo/opml-import.md) _(Kestrel)_ - reviewed 2026-08-30  (72d)
-- [A dead feed took the poller down for 40 minutes](Kestrel/notes/retry-storm-incident.md) _(Kestrel)_ - reviewed 2026-08-30  (72d)
-- [What Kestrel is, in five lines](Kestrel/notes/what-kestrel-is.md) _(Kestrel)_ - reviewed 2026-08-30  (72d)
-- [SQLite, not Postgres](Kestrel/notes/sqlite-over-postgres.md) _(Kestrel)_ - reviewed 2026-09-01  (70d)
+- [Feeds are polled every 5 minutes, not every minute](Kestrel/notes/feed-poll-interval.md) _(Kestrel)_ - reviewed 2026-11-02  (8d)
+- [Decide the auth model before anything exposes a port](Kestrel/todo/auth-model-undecided.md) _(Kestrel)_ - reviewed 2026-11-06  (4d)
+- [Full-text search costs about 90 MB of RAM at 10k articles](Kestrel/notes/mystery-benchmark.md) _(Kestrel)_ - reviewed 2026-11-06  (4d)
+- [Import subscriptions from an OPML file](Kestrel/todo/opml-import.md) _(Kestrel)_ - reviewed 2026-11-06  (4d)
+- [A dead feed took the poller down for 40 minutes](Kestrel/notes/retry-storm-incident.md) _(Kestrel)_ - reviewed 2026-11-06  (4d)
+- [What Kestrel is, in five lines](Kestrel/notes/what-kestrel-is.md) _(Kestrel)_ - reviewed 2026-11-06  (4d)
+- [SQLite, not Postgres](Kestrel/notes/sqlite-over-postgres.md) _(Kestrel)_ - reviewed 2026-11-09  (1d)
 

@@ -4,7 +4,7 @@ type: decision
 project: Kestrel
 status: current
 created: 2026-08-18
-reviewed: 2026-09-01
+reviewed: 2026-11-09
 expires:
 evidence:
   - /Users/dana/notes/Kestrel/evidence/bench-2026-08-20.md
